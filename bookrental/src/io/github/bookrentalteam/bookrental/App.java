@@ -114,11 +114,28 @@ public class App {
     }
 
     private static void addBookFlow() {
-        System.out.println("[도서 등록]");
+        System.out.println("[도서 등록] (0 입력 시 취소)");
+
         String isbn = promptNonEmpty("ISBN");
+        if (isbn.equals("0")) {
+            System.out.println("[안내] 도서 등록이 취소되었습니다.");
+            return;
+        }
         String title = promptNonEmpty("제목");
+        if (title.equals("0")) {
+            System.out.println("[안내] 도서 등록이 취소되었습니다.");
+            return;
+        }
         String author = promptNonEmpty("저자");
-        int total = promptInt("총권수");
+        if (author.equals("0")) {
+            System.out.println("[안내] 도서 등록이 취소되었습니다.");
+            return;
+        }
+        int total = promptInt("총권수 (0 입력 시 취소)");
+        if (total == 0) {
+            System.out.println("[안내] 도서 등록이 취소되었습니다.");
+            return;
+        }
 
         Book b = service.addBook(isbn, title, author, total);
         System.out.printf("[성공] 등록 완료: bookId=%d, 재고=%d/%d%n",
@@ -138,12 +155,17 @@ public class App {
                     truncate(b.author(), 16),
                     b.availableCopies(), b.totalCopies());
         }
-        pause();
+        pause(); // 그대로 유지
     }
 
     private static void searchFlow() {
-        System.out.println("[도서 검색]");
+        System.out.println("[도서 검색] (0 입력 시 취소)");
         String keyword = promptNonEmpty("키워드(제목/저자/ISBN)");
+        if (keyword.equals("0")) {
+            System.out.println("[안내] 도서 검색이 취소되었습니다.");
+            return;
+        }
+
         List<Book> list = service.searchBooks(keyword);
 
         if (list.isEmpty()) {
@@ -165,8 +187,32 @@ public class App {
 
     private static void rentFlow() {
         ensureLogin();
-        System.out.println("[대여]");
-        long bookId = promptInt("bookId 입력");
+        System.out.println("[대여 가능한 도서 목록]");
+
+        List<Book> list = service.listBooks().stream()
+                .filter(b -> b.availableCopies() > 0)
+                .toList();
+
+        if (list.isEmpty()) {
+            System.out.println("[안내] 현재 대여 가능한 도서가 없습니다.");
+            pause();
+            return;
+        }
+
+        System.out.printf("%-4s %-20s %-20s %-16s %-8s%n", "ID", "ISBN", "제목", "저자", "재고/총");
+        for (Book b : list) {
+            System.out.printf("%-4d %-20s %-20s %-16s %d/%d%n",
+                    b.id(), b.isbn(), truncate(b.title(), 20),
+                    truncate(b.author(), 16), b.availableCopies(), b.totalCopies());
+        }
+
+        System.out.println("0 입력 시 취소 후 메뉴로 돌아갑니다.");
+        long bookId = promptInt("대여할 bookId 입력");
+        if (bookId == 0) {
+            System.out.println("[안내] 대여가 취소되었습니다.");
+            return;
+        }
+
         Rental r = service.rent(bookId, currentUser.id());
         Book after = service.getBook(bookId);
 
@@ -177,8 +223,36 @@ public class App {
 
     private static void returnFlow() {
         ensureLogin();
-        System.out.println("[반납]");
-        long rentalId = promptInt("rentalId 입력");
+        System.out.println("[내가 반납할 수 있는 도서 목록]");
+
+        List<Rental> list = service.rentalsByMember(currentUser.id()).stream()
+                .filter(r -> r.status() == RentalStatus.RENTED)
+                .toList();
+
+        if (list.isEmpty()) {
+            System.out.println("[안내] 반납할 수 있는 도서가 없습니다.");
+            pause();
+            return;
+        }
+
+        System.out.printf("%-4s %-20s %-18s %-12s %-12s %-10s%n",
+                "ID", "책제목", "ISBN", "대여일", "예정일", "상태");
+
+        for (Rental r : list) {
+            Book b = service.getBook(r.bookId());
+            System.out.printf("%-4d %-20s %-18s %-12s %-12s %-10s%n",
+                    r.id(),
+                    b != null ? truncate(b.title(), 20) : "(삭제됨)",
+                    b != null ? b.isbn() : "-",
+                    r.rentedAt(), r.dueAt(), r.status());
+        }
+
+        System.out.println("0 입력 시 취소 후 메뉴로 돌아갑니다.");
+        long rentalId = promptInt("반납할 rentalId 입력");
+        if (rentalId == 0) {
+            System.out.println("[안내] 반납이 취소되었습니다.");
+            return;
+        }
 
         Rental r = service.returnBook(rentalId);
         Book after = service.getBook(r.bookId());
@@ -254,9 +328,9 @@ public class App {
 
     private static void seed() {
         try {
-            service.signUp("정원우", "wonwoo@test.com", "test1234!", Role.USER);
-            service.signUp("김태영", "taeyoung@test.com", "test1234!", Role.USER);
-            service.signUp("관리자", "admin@admin.com", "admin1234!", Role.ADMIN);
+            service.signUp("정원우", "wonwoo@test.com", "1234", Role.USER);
+            service.signUp("김태영", "taeyoung@test.com", "1234", Role.USER);
+            service.signUp("관리자", "admin@test.com", "1234", Role.ADMIN);
         } catch (Exception ignore) {}
 
         service.addBook("978-89-7914-874-9", "자바의 정석", "남궁성", 5);
