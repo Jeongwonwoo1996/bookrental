@@ -5,18 +5,36 @@ import java.util.Scanner;
 
 import io.github.bookrentalteam.bookrental.domain.Member;
 import io.github.bookrentalteam.bookrental.domain.Role;
+import io.github.bookrentalteam.bookrental.repository.BookRepository;
+import io.github.bookrentalteam.bookrental.repository.MemberRepository;
+import io.github.bookrentalteam.bookrental.repository.RentalRepository;
+import io.github.bookrentalteam.bookrental.repository.impl.InMemoryBookRepository;
+import io.github.bookrentalteam.bookrental.repository.impl.InMemoryMemberRepository;
+import io.github.bookrentalteam.bookrental.repository.impl.InMemoryRentalRepository;
+import io.github.bookrentalteam.bookrental.service.BookService;
 import io.github.bookrentalteam.bookrental.service.MemberService;
+import io.github.bookrentalteam.bookrental.service.RentalService;
+import io.github.bookrentalteam.bookrental.service.impl.BookServiceImpl;
 import io.github.bookrentalteam.bookrental.service.impl.MemberServiceImpl;
+import io.github.bookrentalteam.bookrental.service.impl.RentalServiceImpl;
 
 /**
- * 콘솔 테스트용 App - 회원가입, 로그인, 로그아웃만 제공 - 더미 회원 데이터(seed) 포함
+ * 콘솔 테스트용 App - 회원가입, 로그인, 로그아웃 제공 - 도서/대여 기능은 [TODO] 표시만 남겨둠 (나중에 구현 예정) - 더미
+ * 회원 데이터(seed) 포함
  */
 public class App {
 
 	private static final Scanner sc = new Scanner(System.in);
 
-	// 서비스 구현체
-	private static final MemberService memberService = new MemberServiceImpl();
+	// Repository 생성
+	private static final MemberRepository memberRepository = new InMemoryMemberRepository();
+	private static final BookRepository bookRepository = new InMemoryBookRepository();
+	private static final RentalRepository rentalRepository = new InMemoryRentalRepository();
+
+	// Service 생성 (의존성 주입)
+	private static final MemberService memberService = new MemberServiceImpl(memberRepository);
+	private static final BookService bookService = new BookServiceImpl(bookRepository);
+	private static final RentalService rentalService = new RentalServiceImpl(rentalRepository);
 
 	public static void main(String[] args) {
 		seed(); // 더미 회원 등록
@@ -26,6 +44,7 @@ public class App {
 				if (memberService.getCurrentUser() == null) { // 로그인 안 된 상태
 					showWelcome();
 					int sel = promptInt("선택");
+
 					switch (sel) {
 					case 1 -> signUpFlow();
 					case 2 -> loginFlow();
@@ -35,12 +54,31 @@ public class App {
 					}
 					default -> System.out.println("[오류] 메뉴 번호를 다시 선택해주세요.");
 					}
-				} else { // 로그인 된 상태
+				} else {
 					showMainMenu();
 					int sel = promptInt("선택");
-					switch (sel) {
-					case 0 -> logout();
-					default -> System.out.println("[오류] 메뉴 번호를 다시 선택해주세요.");
+
+					if (memberService.getCurrentUser().getRole() == Role.ADMIN) { // 관리자 메뉴
+						switch (sel) {
+						case 1 -> System.out.println("구현 필요"); // addBookFlow() ;
+						case 2 -> System.out.println("구현 필요"); // listBooksFlow();
+						case 3 -> System.out.println("구현 필요"); // searchFlow();
+						case 4 -> System.out.println("구현 필요"); // rentFlow();
+						case 5 -> System.out.println("구현 필요"); // returnFlow();
+						case 6 -> System.out.println("구현 필요"); // myRentalsFlow();
+						case 0 -> logout();
+						default -> System.out.println("[오류] 메뉴 번호를 다시 선택해주세요.");
+						}
+					} else { // 일반 사용자 메뉴
+						switch (sel) {
+						case 1 -> System.out.println("구현 필요"); // listBooksFlow();
+						case 2 -> System.out.println("구현 필요"); // searchFlow();
+						case 3 -> System.out.println("구현 필요"); // rentFlow();
+						case 4 -> System.out.println("구현 필요"); // returnFlow();
+						case 5 -> System.out.println("구현 필요"); // myRentalsFlow();
+						case 0 -> logout();
+						default -> System.out.println("[오류] 메뉴 번호를 다시 선택해주세요.");
+						}
 					}
 				}
 			} catch (InputMismatchException e) {
@@ -58,8 +96,14 @@ public class App {
 
 	private static void showMainMenu() {
 		Member currentUser = memberService.getCurrentUser();
-		System.out.printf("=== 메인 메뉴 (로그인: %s, 권한: %s) ===%n", currentUser.name(), currentUser.role());
-		System.out.println("0) 로그아웃");
+
+		System.out.printf("=== 메인 메뉴 (로그인: %s, 권한: %s) ===%n", currentUser.getName(), currentUser.getRole());
+
+		if (currentUser.getRole() == Role.ADMIN) {
+			System.out.println("1) 도서 등록   2) 도서 목록   3) 도서 검색   4) 도서 대여   5) 도서반납   6) 내 대여목록   0) 로그아웃");
+		} else {
+			System.out.println("1) 도서 목록   2) 도서 검색   3) 도서 대여   4) 도서 반납   5) 내 도서 대여목록   0) 로그아웃");
+		}
 	}
 
 	private static void signUpFlow() {
@@ -76,7 +120,7 @@ public class App {
 
 		try {
 			Member m = memberService.signUp(name, email, pw, role);
-			System.out.println("[성공] 회원가입 완료: " + m);
+			System.out.println("[성공] 회원가입 완료: " + m.getName());
 		} catch (Exception e) {
 			System.out.println("[오류] " + e.getMessage());
 		}
@@ -91,7 +135,7 @@ public class App {
 
 		try {
 			Member m = memberService.login(email, pw);
-			System.out.println("[성공] 로그인: " + m.name());
+			System.out.println("[성공] 로그인: " + m.getName());
 		} catch (Exception e) {
 			System.out.println("[오류] " + e.getMessage());
 		}

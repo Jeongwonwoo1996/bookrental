@@ -4,9 +4,16 @@ import java.util.List;
 
 import io.github.bookrentalteam.bookrental.domain.Member;
 import io.github.bookrentalteam.bookrental.domain.Rental;
+import io.github.bookrentalteam.bookrental.repository.RentalRepository;
 import io.github.bookrentalteam.bookrental.service.RentalService;
 
 public class RentalServiceImpl implements RentalService {
+
+	private final RentalRepository rentalRepository;
+
+	public RentalServiceImpl(RentalRepository rentalRepository) {
+		this.rentalRepository = rentalRepository;
+	}
 
 	@Override
 	public Rental rentBook(long bookId, Member member) {
