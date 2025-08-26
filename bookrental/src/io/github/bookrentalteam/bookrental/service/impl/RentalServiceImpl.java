@@ -1,37 +1,62 @@
 package io.github.bookrentalteam.bookrental.service.impl;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import io.github.bookrentalteam.bookrental.domain.Member;
 import io.github.bookrentalteam.bookrental.domain.Rental;
 import io.github.bookrentalteam.bookrental.repository.RentalRepository;
+import io.github.bookrentalteam.bookrental.service.BookService;
 import io.github.bookrentalteam.bookrental.service.RentalService;
 
 public class RentalServiceImpl implements RentalService {
 
 	private final RentalRepository rentalRepository;
+	private final BookService bookService;
 
-	public RentalServiceImpl(RentalRepository rentalRepository) {
+	public RentalServiceImpl(RentalRepository rentalRepository, BookService bookService) {
 		this.rentalRepository = rentalRepository;
+		this.bookService = bookService;
 	}
 
 	@Override
 	public Rental rentBook(long bookId, Member member) {
-		return null;
+		// TODO: BookServiceImpl 완성되면 도서 조회 및 재고 확인 로직 추가
+		// Book book = bookService.findById(bookId)
+		// .orElseThrow(() -> new IllegalArgumentException("도서를 찾을 수 없습니다."));
+		//
+		// if (!book.rent()) {
+		// throw new IllegalStateException("대여 가능한 재고가 없습니다.");
+		// }
+
+		Rental rental = new Rental(bookId, member.getId());
+		rentalRepository.save(rental);
+		return rental;
 	}
 
 	@Override
 	public Rental returnBook(long rentalId) {
-		return null;
+		Rental rental = rentalRepository.findById(rentalId)
+				.orElseThrow(() -> new IllegalArgumentException("해당 대여 기록을 찾을 수 없습니다."));
+		rental.markReturned(LocalDate.now());
+		rentalRepository.save(rental); // 상태 갱신
+		return rental;
 	}
 
 	@Override
 	public List<Rental> getRentalsByMember(Member member) {
-		return null;
+		return rentalRepository.findByMemberId(member.getId());
 	}
 
 	@Override
 	public void checkOverdueAndApplySuspension(Member member) {
+		List<Rental> rentals = getRentalsByMember(member);
+		for (Rental r : rentals) {
+			if (r.isOverdue()) {
+				System.out.printf("[경고] 회원 %s 연체 %d일 발생%n", member.getName(), r.overdueDays());
+				// TODO: Member 엔티티에 제재(suspendUntil 등) 처리 추가 예정
+			}
+		}
 	}
 
 }

@@ -4,6 +4,7 @@ import java.util.InputMismatchException;
 import java.util.Scanner;
 
 import io.github.bookrentalteam.bookrental.domain.Member;
+import io.github.bookrentalteam.bookrental.domain.Rental;
 import io.github.bookrentalteam.bookrental.domain.Role;
 import io.github.bookrentalteam.bookrental.repository.BookRepository;
 import io.github.bookrentalteam.bookrental.repository.MemberRepository;
@@ -34,7 +35,7 @@ public class App {
 	// Service 생성 (의존성 주입)
 	private static final MemberService memberService = new MemberServiceImpl(memberRepository);
 	private static final BookService bookService = new BookServiceImpl(bookRepository);
-	private static final RentalService rentalService = new RentalServiceImpl(rentalRepository);
+	private static final RentalService rentalService = new RentalServiceImpl(rentalRepository, bookService);
 
 	public static void main(String[] args) {
 		seed(); // 더미 회원 등록
@@ -73,9 +74,28 @@ public class App {
 						switch (sel) {
 						case 1 -> System.out.println("구현 필요"); // listBooksFlow();
 						case 2 -> System.out.println("구현 필요"); // searchFlow();
-						case 3 -> System.out.println("구현 필요"); // rentFlow();
-						case 4 -> System.out.println("구현 필요"); // returnFlow();
-						case 5 -> System.out.println("구현 필요"); // myRentalsFlow();
+//						case 3 -> System.out.println("구현 필요"); // rentFlow();
+//						case 4 -> System.out.println("구현 필요"); // returnFlow();
+//						case 5 -> System.out.println("구현 필요"); // myRentalsFlow();
+						case 3 -> {
+							System.out.print("대여할 도서 ID> ");
+							long bookId = Long.parseLong(sc.nextLine().trim());
+							Member current = memberService.getCurrentUser();
+							Rental rental = rentalService.rentBook(bookId, current);
+							System.out.println("[성공] 도서 대여 완료: rentalId=" + rental.getId());
+						}
+						case 4 -> {
+							System.out.print("반납할 대여 ID> ");
+							long rentalId = Long.parseLong(sc.nextLine().trim());
+							Rental rental = rentalService.returnBook(rentalId);
+							System.out.println("[성공] 도서 반납 완료: rentalId=" + rental.getId());
+						}
+						case 5 -> {
+							Member current = memberService.getCurrentUser();
+							System.out.println("[내 대여 목록]");
+							rentalService.getRentalsByMember(current).forEach(r -> System.out
+									.printf("대여ID=%d, BookID=%d, 상태=%s%n", r.getId(), r.getBookId(), r.getStatus()));
+						}
 						case 0 -> logout();
 						default -> System.out.println("[오류] 메뉴 번호를 다시 선택해주세요.");
 						}
