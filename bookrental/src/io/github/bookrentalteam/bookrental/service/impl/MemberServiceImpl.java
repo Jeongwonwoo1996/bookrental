@@ -1,34 +1,42 @@
 package io.github.bookrentalteam.bookrental.service.impl;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 import io.github.bookrentalteam.bookrental.common.security.Passwords;
 import io.github.bookrentalteam.bookrental.domain.Member;
 import io.github.bookrentalteam.bookrental.domain.Role;
+import io.github.bookrentalteam.bookrental.repository.MemberRepository;
 import io.github.bookrentalteam.bookrental.service.MemberService;
 
 public class MemberServiceImpl implements MemberService {
 
-	private final Map<Long, Member> members = new LinkedHashMap<>();
+	private final MemberRepository memberRepository; // 주입받는 저장소
 	private Member currentUser = null; // 로그인 상태 저장
+
+	// 생성자에서 Repository 주입
+	public MemberServiceImpl(MemberRepository memberRepository) {
+		this.memberRepository = memberRepository;
+	}
 
 	@Override
 	public Member signUp(String name, String email, String pw, Role role) {
-		if (members.values().stream().anyMatch(m -> m.email().equalsIgnoreCase(email))) {
+		// 이메일 중복 체크
+		if (memberRepository.findByEmail(email).isPresent()) {
 			throw new IllegalStateException("이미 등록된 이메일입니다.");
 		}
+
+		// 비밀번호 해싱
 		String hashed = Passwords.hash(pw);
 		Member m = new Member(name, email, hashed, role);
-		members.put(m.id(), m);
+
+		// 저장
+		memberRepository.save(m);
 		return m;
 	}
 
 	@Override
 	public Member login(String email, String pw) {
-		Member m = members.values().stream().filter(mem -> mem.email().equalsIgnoreCase(email))
-				.filter(mem -> mem.authenticate(pw)).findFirst()
+		Member m = memberRepository.findByEmail(email).filter(mem -> mem.authenticate(pw))
 				.orElseThrow(() -> new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다."));
+
 		currentUser = m;
 		return m;
 	}

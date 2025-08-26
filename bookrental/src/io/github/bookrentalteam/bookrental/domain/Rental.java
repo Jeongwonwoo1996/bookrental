@@ -6,52 +6,77 @@ import java.time.temporal.ChronoUnit;
 import io.github.bookrentalteam.bookrental.common.exception.BusinessException;
 import io.github.bookrentalteam.bookrental.common.exception.ValidationException;
 
-/**
- * 대여 엔티티 (불변, auto-increment ID)
- */
-public record Rental(long id, long bookId, long memberId, LocalDate rentedAt, LocalDate dueAt, LocalDate returnedAt,
-		RentalStatus status) {
+public class Rental {
 	private static long sequence = 0;
 
-	public Rental {
-		if (bookId <= 0) {
+	private Long id;
+	private Long bookId;
+	private Long memberId;
+	private LocalDate rentedAt;
+	private LocalDate dueAt;
+	private LocalDate returnedAt;
+	private RentalStatus status;
+
+	public Rental(Long bookId, Long memberId) {
+		if (bookId == null || bookId <= 0) {
 			throw new ValidationException("bookId는 필수입니다.");
 		}
-		if (memberId <= 0) {
+		if (memberId == null || memberId <= 0) {
 			throw new ValidationException("memberId는 필수입니다.");
 		}
-		if (rentedAt == null) {
-			rentedAt = LocalDate.now();
-		}
-		if (dueAt == null) {
-			dueAt = rentedAt.plusDays(14);
-		}
-		if (status == null) {
-			status = RentalStatus.RENTED;
-		}
+
+		this.id = ++sequence;
+		this.bookId = bookId;
+		this.memberId = memberId;
+		this.rentedAt = LocalDate.now();
+		this.dueAt = rentedAt.plusDays(14);
+		this.status = RentalStatus.RENTED;
 	}
 
-	// 자동 ID 발급 생성자
-	public Rental(long bookId, long memberId) {
-		this(++sequence, bookId, memberId, LocalDate.now(), LocalDate.now().plusDays(14), null, RentalStatus.RENTED);
+	// getter
+	public Long getId() {
+		return id;
 	}
 
-	public Rental markReturned(LocalDate date) {
+	public Long getBookId() {
+		return bookId;
+	}
+
+	public Long getMemberId() {
+		return memberId;
+	}
+
+	public LocalDate getRentedAt() {
+		return rentedAt;
+	}
+
+	public LocalDate getDueAt() {
+		return dueAt;
+	}
+
+	public LocalDate getReturnedAt() {
+		return returnedAt;
+	}
+
+	public RentalStatus getStatus() {
+		return status;
+	}
+
+	// 반납 처리
+	public void markReturned(LocalDate date) {
 		if (status == RentalStatus.RETURNED) {
 			throw new BusinessException("이미 반납된 대여입니다.");
 		}
-		if (date == null) {
-			date = LocalDate.now();
-		}
-		return new Rental(id, bookId, memberId, rentedAt, dueAt, date, RentalStatus.RETURNED);
+		this.returnedAt = (date != null) ? date : LocalDate.now();
+		this.status = RentalStatus.RETURNED;
 	}
 
-	/** 연체 여부 */
+	// 연체 여부
 	public boolean isOverdue() {
 		return status == RentalStatus.RENTED && dueAt.isBefore(LocalDate.now());
 	}
 
-	/** 연체 일수 */
+	// 연체 일수
 	public long overdueDays() {
 		return isOverdue() ? ChronoUnit.DAYS.between(dueAt, LocalDate.now()) : 0;
 	}
