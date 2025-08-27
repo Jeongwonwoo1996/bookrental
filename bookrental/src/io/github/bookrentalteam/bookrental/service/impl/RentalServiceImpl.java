@@ -3,6 +3,7 @@ package io.github.bookrentalteam.bookrental.service.impl;
 import java.time.LocalDate;
 import java.util.List;
 
+import io.github.bookrentalteam.bookrental.domain.Book;
 import io.github.bookrentalteam.bookrental.domain.Member;
 import io.github.bookrentalteam.bookrental.domain.Rental;
 import io.github.bookrentalteam.bookrental.repository.RentalRepository;
@@ -21,14 +22,15 @@ public class RentalServiceImpl implements RentalService {
 
 	@Override
 	public Rental rentBook(long bookId, Member member) {
-		// TODO: BookServiceImpl 완성되면 도서 조회 및 재고 확인 로직 추가
-		// Book book = bookService.findById(bookId)
-		// .orElseThrow(() -> new IllegalArgumentException("도서를 찾을 수 없습니다."));
-		//
-		// if (!book.rent()) {
-		// throw new IllegalStateException("대여 가능한 재고가 없습니다.");
-		// }
+		// 도서 조회
+		Book book = bookService.getBook(bookId);
 
+		// 재고 확인
+		if (!book.rent()) {
+			throw new IllegalStateException("대여 가능한 재고가 없습니다.");
+		}
+
+		// 대여 생성
 		Rental rental = new Rental(bookId, member.getId());
 		rentalRepository.save(rental);
 		return rental;
