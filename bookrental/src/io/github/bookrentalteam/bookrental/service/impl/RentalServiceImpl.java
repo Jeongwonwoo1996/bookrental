@@ -52,7 +52,14 @@ public class RentalServiceImpl implements RentalService {
 	public Rental returnBook(long rentalId) {
 		Rental rental = rentalRepository.findById(rentalId)
 				.orElseThrow(() -> new IllegalArgumentException("해당 대여 기록을 찾을 수 없습니다."));
+
+		// 대여 상태 변경
 		rental.markReturned(LocalDate.now());
+
+		// 반납 시 책 재고 증가
+		Book book = bookService.getBook(rental.getBookId());
+		book.returnBook();
+
 		rentalRepository.save(rental); // 상태 갱신
 		return rental;
 	}
@@ -87,7 +94,7 @@ public class RentalServiceImpl implements RentalService {
 
 		rental.extend(); // Rental의 연장 로직 실행
 		rentalRepository.save(rental); // 상태 갱신
-		return null;
+		return rental;
 	}
 
 }
