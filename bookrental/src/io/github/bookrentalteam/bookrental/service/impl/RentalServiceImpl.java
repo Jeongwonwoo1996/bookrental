@@ -63,6 +63,14 @@ public class RentalServiceImpl implements RentalService {
 	public Rental extendRental(long rentalId) {
 		Rental rental = rentalRepository.findById(rentalId)
 				.orElseThrow(() -> new IllegalArgumentException("해당 대여 기록을 찾을 수 없습니다"));
+
+		// 연체된 도서가 하나라도 있으면 연장 불가
+		List<Rental> rentals = rentalRepository.findByMemberId(rental.getMemberId());
+		boolean hasOverdue = rentals.stream().anyMatch(Rental::isOverdue);
+		if (hasOverdue) {
+			throw new IllegalStateException("연체된 도서가 있어 연장할 수 없습니다.");
+		}
+
 		rental.extend(); // Rental의 연장 로직 실행
 		rentalRepository.save(rental); // 상태 갱신
 		return null;

@@ -5,6 +5,7 @@ import java.util.Scanner;
 
 import io.github.bookrentalteam.bookrental.domain.Member;
 import io.github.bookrentalteam.bookrental.domain.Rental;
+import io.github.bookrentalteam.bookrental.domain.RentalStatus;
 import io.github.bookrentalteam.bookrental.domain.Role;
 import io.github.bookrentalteam.bookrental.repository.BookRepository;
 import io.github.bookrentalteam.bookrental.repository.MemberRepository;
@@ -94,6 +95,12 @@ public class App {
 
 	// 도서 대여
 	private static void rentBookFlow() {
+		System.out.println("[대여 가능한 도서 목록]");
+		var books = bookService.listBooks();
+		books.stream().filter(b -> b.getAvailableCopies() > 0)
+				.forEach(b -> System.out.printf("ID=%d, 제목=%s, 저자=%s, 재고: 현재 대여 가능 권수=%d / 총 보유 권수=%d%n", b.getId(),
+						b.getTitle(), b.getAuthor(), b.getAvailableCopies(), b.getTotalCopies()));
+
 		System.out.print("대여할 도서 ID> ");
 		long bookId = Long.parseLong(sc.nextLine().trim());
 		Member current = memberService.getCurrentUser();
@@ -103,6 +110,12 @@ public class App {
 
 	// 도서 반납
 	private static void returnBookFlow() {
+		Member currentUser = memberService.getCurrentUser();
+		System.out.println("[내 대여 목록]");
+		var rentals = rentalService.getRentalsByMember(currentUser);
+		rentals.stream().filter(r -> r.getStatus() == RentalStatus.RENTED).forEach(
+				r -> System.out.printf("대여ID=%d, BookId=%d, 반납예정일=%s%n", r.getId(), r.getBookId(), r.getDueAt()));
+
 		System.out.print("반납할 대여 ID> ");
 		long rentalId = Long.parseLong(sc.nextLine().trim());
 		Rental rental = rentalService.returnBook(rentalId);
