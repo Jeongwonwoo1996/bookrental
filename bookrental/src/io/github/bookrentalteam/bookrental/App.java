@@ -61,22 +61,20 @@ public class App {
 
 					if (memberService.getCurrentUser().getRole() == Role.ADMIN) { // 관리자 메뉴
 						switch (sel) {
-						case 1 -> System.out.println("구현 필요"); // addBookFlow() ;
-						case 2 -> System.out.println("구현 필요"); // listBooksFlow();
-						case 3 -> System.out.println("구현 필요"); // searchFlow();
-						case 4 -> System.out.println("구현 필요"); // rentFlow();
-						case 5 -> System.out.println("구현 필요"); // returnFlow();
-						case 6 -> System.out.println("구현 필요"); // myRentalsFlow();
+						case 1 -> System.out.println("도서 등록 기능 구현 필요");
+						case 2 -> System.out.println("도서 목록 기능 구현 필요");
+						case 3 -> System.out.println("도서 검색 기능 구현 필요");
+						case 4 -> System.out.println("도서 대여 기능 구현 필요");
+						case 5 -> System.out.println("도서 반납 기능 구현 필요");
+						case 6 -> System.out.println("대여 연장 기능 구현 필요");
+						case 7 -> System.out.println("내 대여 목록 기능 구현 필요");
 						case 0 -> logout();
 						default -> System.out.println("[오류] 메뉴 번호를 다시 선택해주세요.");
 						}
 					} else { // 일반 사용자 메뉴
 						switch (sel) {
-						case 1 -> System.out.println("구현 필요"); // listBooksFlow();
-						case 2 -> System.out.println("구현 필요"); // searchFlow();
-//						case 3 -> System.out.println("구현 필요"); // rentFlow();
-//						case 4 -> System.out.println("구현 필요"); // returnFlow();
-//						case 5 -> System.out.println("구현 필요"); // myRentalsFlow();
+						case 1 -> System.out.println("도서 목록 기능 구현 필요");
+						case 2 -> System.out.println("도서 검색 기능 구현 필요");
 						case 3 -> {
 							System.out.print("대여할 도서 ID> ");
 							long bookId = Long.parseLong(sc.nextLine().trim());
@@ -90,7 +88,8 @@ public class App {
 							Rental rental = rentalService.returnBook(rentalId);
 							System.out.println("[성공] 도서 반납 완료: rentalId=" + rental.getId());
 						}
-						case 5 -> {
+						case 5 -> System.out.println("대여 연장 기능 구현 필요");
+						case 6 -> {
 							Member current = memberService.getCurrentUser();
 							System.out.println("[내 대여 목록]");
 							rentalService.getRentalsByMember(current).forEach(r -> System.out
@@ -120,9 +119,10 @@ public class App {
 		System.out.printf("=== 메인 메뉴 (로그인: %s, 권한: %s) ===%n", currentUser.getName(), currentUser.getRole());
 
 		if (currentUser.getRole() == Role.ADMIN) {
-			System.out.println("1) 도서 등록   2) 도서 목록   3) 도서 검색   4) 도서 대여   5) 도서반납   6) 내 대여목록   0) 로그아웃");
+			System.out
+					.println("1) 도서 등록   2) 도서 목록   3) 도서 검색   4) 도서 대여   5) 도서 반납   6) 대여 연장   7) 내 대여 목록   0) 로그아웃");
 		} else {
-			System.out.println("1) 도서 목록   2) 도서 검색   3) 도서 대여   4) 도서 반납   5) 내 도서 대여목록   0) 로그아웃");
+			System.out.println("1) 도서 목록   2) 도서 검색   3) 도서 대여   4) 도서 반납   5) 대여 연장   6) 내 대여 목록   0) 로그아웃");
 		}
 	}
 
