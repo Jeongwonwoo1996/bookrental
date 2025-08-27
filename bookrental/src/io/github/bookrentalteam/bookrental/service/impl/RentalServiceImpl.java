@@ -59,4 +59,13 @@ public class RentalServiceImpl implements RentalService {
 		}
 	}
 
+	@Override
+	public Rental extendRental(long rentalId) {
+		Rental rental = rentalRepository.findById(rentalId)
+				.orElseThrow(() -> new IllegalArgumentException("해당 대여 기록을 찾을 수 없습니다"));
+		rental.extend(); // Rental의 연장 로직 실행
+		rentalRepository.save(rental); // 상태 갱신
+		return null;
+	}
+
 }

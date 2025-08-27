@@ -17,4 +17,7 @@ public interface RentalService {
 
 	/** 연체 여부 검사 및 제재 처리 */
 	void checkOverdueAndApplySuspension(Member member);
+
+	/** 대여 연장 */
+	Rental extendRental(long rentalId);
 }

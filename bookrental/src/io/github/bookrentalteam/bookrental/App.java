@@ -64,9 +64,9 @@ public class App {
 						case 1 -> registerBookFlow();
 						case 2 -> listBooksFlow();
 						case 3 -> searchBooksFlow();
-						case 4 -> System.out.println("도서 대여 기능 구현 필요");
-						case 5 -> System.out.println("도서 반납 기능 구현 필요");
-						case 6 -> System.out.println("대여 연장 기능 구현 필요");
+						case 4 -> rentBookFlow();
+						case 5 -> returnBookFlow();
+						case 6 -> extendRentalFlow();
 						case 7 -> myRentalsFlow();
 						case 0 -> logout();
 						default -> System.out.println("[오류] 메뉴 번호를 다시 선택해주세요.");
@@ -75,20 +75,9 @@ public class App {
 						switch (sel) {
 						case 1 -> listBooksFlow();
 						case 2 -> searchBooksFlow();
-						case 3 -> {
-							System.out.print("대여할 도서 ID> ");
-							long bookId = Long.parseLong(sc.nextLine().trim());
-							Member current = memberService.getCurrentUser();
-							Rental rental = rentalService.rentBook(bookId, current);
-							System.out.println("[성공] 도서 대여 완료: rentalId=" + rental.getId());
-						}
-						case 4 -> {
-							System.out.print("반납할 대여 ID> ");
-							long rentalId = Long.parseLong(sc.nextLine().trim());
-							Rental rental = rentalService.returnBook(rentalId);
-							System.out.println("[성공] 도서 반납 완료: rentalId=" + rental.getId());
-						}
-						case 5 -> System.out.println("대여 연장 기능 구현 필요");
+						case 3 -> rentBookFlow();
+						case 4 -> returnBookFlow();
+						case 5 -> extendRentalFlow();
 						case 6 -> myRentalsFlow();
 						case 0 -> logout();
 						default -> System.out.println("[오류] 메뉴 번호를 다시 선택해주세요.");
@@ -101,6 +90,23 @@ public class App {
 				System.out.println("[오류] " + e.getMessage());
 			}
 		}
+	}
+
+	// 도서 대여
+	private static void rentBookFlow() {
+		System.out.print("대여할 도서 ID> ");
+		long bookId = Long.parseLong(sc.nextLine().trim());
+		Member current = memberService.getCurrentUser();
+		Rental rental = rentalService.rentBook(bookId, current);
+		System.out.println("[성공] 도서 대여 완료: rentalId=" + rental.getId());
+	}
+
+	// 도서 반납
+	private static void returnBookFlow() {
+		System.out.print("반납할 대여 ID> ");
+		long rentalId = Long.parseLong(sc.nextLine().trim());
+		Rental rental = rentalService.returnBook(rentalId);
+		System.out.println("[성공] 도서 반납 완료: rentalId=" + rental.getId());
 	}
 
 	// 도서 등록
@@ -137,6 +143,7 @@ public class App {
 
 	}
 
+	// 도서 검색
 	private static void searchBooksFlow() {
 		System.out.print("검색 키워드 > ");
 		String keyword = sc.nextLine().trim();
@@ -149,12 +156,21 @@ public class App {
 		}
 	}
 
+	// 내 대여 목록
+
 	private static void myRentalsFlow() {
 		Member current = memberService.getCurrentUser();
 		System.out.println("[내 대여 목록]");
 		rentalService.getRentalsByMember(current)
 				.forEach(r -> System.out.printf("대여ID=%d, BookID=%d, 상태=%s, 대여일=%s, 반납예정일=%s%n", r.getId(),
 						r.getBookId(), r.getStatus(), r.getRentedAt(), r.getDueAt()));
+	}
+
+	private static void extendRentalFlow() {
+		System.out.println("연장할 대여 ID> ");
+		long rentalId = Long.parseLong(sc.nextLine().trim());
+		Rental rental = rentalService.extendRental(rentalId);
+		System.out.println("[성공] 대여 연장 완료: rentalId=" + rental.getId() + ", 반납예정일=" + rental.getDueAt());
 	}
 
 	private static void showWelcome() {

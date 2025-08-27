@@ -16,6 +16,7 @@ public class Rental {
 	private LocalDate dueAt;
 	private LocalDate returnedAt;
 	private RentalStatus status;
+	private int extensionCount = 0; // 연장횟수
 
 	public Rental(Long bookId, Long memberId) {
 		if (bookId == null || bookId <= 0) {
@@ -62,6 +63,10 @@ public class Rental {
 		return status;
 	}
 
+	public int getExtensionCount() {
+		return extensionCount;
+	}
+
 	// 반납 처리
 	public void markReturned(LocalDate date) {
 		if (status == RentalStatus.RETURNED) {
@@ -69,6 +74,22 @@ public class Rental {
 		}
 		this.returnedAt = (date != null) ? date : LocalDate.now();
 		this.status = RentalStatus.RETURNED;
+	}
+
+	// 대여 연장(7일)
+	public void extend() {
+		if (status == RentalStatus.RETURNED) {
+			throw new ValidationException("이미 반납된 도서는 연장할 수 없습니다.");
+		}
+		if (isOverdue()) {
+			throw new BusinessException("연체된 도서는 연장할 수 없습니다.");
+		}
+		if (extensionCount >= 1) {
+			throw new BusinessException("연장은 1회만 가능합니다.");
+		}
+
+		this.dueAt = this.dueAt.plusDays(7);
+		this.extensionCount++;
 	}
 
 	// 연체 여부
