@@ -61,20 +61,20 @@ public class App {
 
 					if (memberService.getCurrentUser().getRole() == Role.ADMIN) { // 관리자 메뉴
 						switch (sel) {
-						case 1 -> System.out.println("도서 등록 기능 구현 필요");
-						case 2 -> System.out.println("도서 목록 기능 구현 필요");
-						case 3 -> System.out.println("도서 검색 기능 구현 필요");
+						case 1 -> registerBookFlow();
+						case 2 -> listBooksFlow();
+						case 3 -> searchBooksFlow();
 						case 4 -> System.out.println("도서 대여 기능 구현 필요");
 						case 5 -> System.out.println("도서 반납 기능 구현 필요");
 						case 6 -> System.out.println("대여 연장 기능 구현 필요");
-						case 7 -> System.out.println("내 대여 목록 기능 구현 필요");
+						case 7 -> myRentalsFlow();
 						case 0 -> logout();
 						default -> System.out.println("[오류] 메뉴 번호를 다시 선택해주세요.");
 						}
 					} else { // 일반 사용자 메뉴
 						switch (sel) {
-						case 1 -> System.out.println("도서 목록 기능 구현 필요");
-						case 2 -> System.out.println("도서 검색 기능 구현 필요");
+						case 1 -> listBooksFlow();
+						case 2 -> searchBooksFlow();
 						case 3 -> {
 							System.out.print("대여할 도서 ID> ");
 							long bookId = Long.parseLong(sc.nextLine().trim());
@@ -89,12 +89,7 @@ public class App {
 							System.out.println("[성공] 도서 반납 완료: rentalId=" + rental.getId());
 						}
 						case 5 -> System.out.println("대여 연장 기능 구현 필요");
-						case 6 -> {
-							Member current = memberService.getCurrentUser();
-							System.out.println("[내 대여 목록]");
-							rentalService.getRentalsByMember(current).forEach(r -> System.out
-									.printf("대여ID=%d, BookID=%d, 상태=%s%n", r.getId(), r.getBookId(), r.getStatus()));
-						}
+						case 6 -> myRentalsFlow();
 						case 0 -> logout();
 						default -> System.out.println("[오류] 메뉴 번호를 다시 선택해주세요.");
 						}
@@ -106,6 +101,60 @@ public class App {
 				System.out.println("[오류] " + e.getMessage());
 			}
 		}
+	}
+
+	// 도서 등록
+	private static void registerBookFlow() {
+		System.out.println("[도서 등록]");
+		System.out.print("ISBN> ");
+		String isbn = sc.nextLine().trim();
+		System.out.print("제목> ");
+		String title = sc.nextLine().trim();
+		System.out.print("저자> ");
+		String author = sc.nextLine().trim();
+		System.out.println("총 권수> ");
+		int totalCopies = Integer.parseInt(sc.nextLine().trim());
+
+		try {
+			var book = bookService.registerBook(isbn, title, author, totalCopies);
+			System.out.println("[성공] 도서 등록 완료 : " + book.getTitle());
+		} catch (Exception e) {
+			System.out.println("[오류] " + e.getMessage());
+		}
+
+	}
+
+	// 도서 목록
+	private static void listBooksFlow() {
+		System.out.println("[도서 목록]");
+		var books = bookService.listBooks();
+		if (books.isEmpty()) {
+			System.out.println("등록된 도서가 없습니다.");
+		} else {
+			books.forEach(b -> System.out.printf("ID=%d, 제목=%s, 저자=%s, 재고: 현재 대여 가능 권수=%d / 총 보유 권수=%d%n", b.getId(),
+					b.getTitle(), b.getAuthor(), b.getAvailableCopies(), b.getTotalCopies()));
+		}
+
+	}
+
+	private static void searchBooksFlow() {
+		System.out.print("검색 키워드 > ");
+		String keyword = sc.nextLine().trim();
+		var books = bookService.searchBooks(keyword);
+		if (books.isEmpty()) {
+			System.out.println("검색 결과가 없습니다.");
+		} else {
+			books.forEach(b -> System.out.printf("ID=%d, 제목=%s, 저자=%s, 재고: 현재 대여 가능 권수=%d / 총 보유 권수=%d%n", b.getId(),
+					b.getTitle(), b.getAuthor(), b.getAvailableCopies(), b.getTotalCopies()));
+		}
+	}
+
+	private static void myRentalsFlow() {
+		Member current = memberService.getCurrentUser();
+		System.out.println("[내 대여 목록]");
+		rentalService.getRentalsByMember(current)
+				.forEach(r -> System.out.printf("대여ID=%d, BookID=%d, 상태=%s, 대여일=%s, 반납예정일=%s%n", r.getId(),
+						r.getBookId(), r.getStatus(), r.getRentedAt(), r.getDueAt()));
 	}
 
 	private static void showWelcome() {
