@@ -31,4 +31,10 @@ public class InMemoryBookRepository implements BookRepository {
 	public void delete(Long id) {
 		store.remove(id);
 	}
+
+	@Override
+	public Optional<Book> findByIsbn(String isbn) {
+		return store.values().stream().filter(book -> book.getIsbn().equalsIgnoreCase(isbn)).findFirst();
+	}
+
 }
