@@ -1,8 +1,10 @@
 package io.github.bookrentalteam.bookrental;
 
 import java.util.InputMismatchException;
+import java.util.List;
 import java.util.Scanner;
 
+import io.github.bookrentalteam.bookrental.domain.Book;
 import io.github.bookrentalteam.bookrental.domain.Member;
 import io.github.bookrentalteam.bookrental.domain.Role;
 import io.github.bookrentalteam.bookrental.repository.BookRepository;
@@ -60,9 +62,9 @@ public class App {
 
 					if (memberService.getCurrentUser().getRole() == Role.ADMIN) { // 관리자 메뉴
 						switch (sel) {
-						case 1 -> System.out.println("구현 필요"); // addBookFlow() ;
-						case 2 -> System.out.println("구현 필요"); // listBooksFlow();
-						case 3 -> System.out.println("구현 필요"); // searchFlow();
+						case 1 -> addBookFlow(sc);
+						case 2 -> listBooksFlow();
+						case 3 -> searchFlow(sc);
 						case 4 -> System.out.println("구현 필요"); // rentFlow();
 						case 5 -> System.out.println("구현 필요"); // returnFlow();
 						case 6 -> System.out.println("구현 필요"); // myRentalsFlow();
@@ -71,8 +73,8 @@ public class App {
 						}
 					} else { // 일반 사용자 메뉴
 						switch (sel) {
-						case 1 -> System.out.println("구현 필요"); // listBooksFlow();
-						case 2 -> System.out.println("구현 필요"); // searchFlow();
+						case 1 -> listBooksFlow();
+						case 2 -> searchFlow(sc);
 						case 3 -> System.out.println("구현 필요"); // rentFlow();
 						case 4 -> System.out.println("구현 필요"); // returnFlow();
 						case 5 -> System.out.println("구현 필요"); // myRentalsFlow();
@@ -85,6 +87,73 @@ public class App {
 				System.out.println("[오류] 숫자를 입력해주세요.");
 			} catch (Exception e) {
 				System.out.println("[오류] " + e.getMessage());
+			}
+		}
+	}
+
+	// 책 리스트 출력 //
+	private static void listBooksFlow() {
+		// 서비스로부터 책 목록을 가져오기
+		List<Book> books = bookService.listBooks();
+
+		// 책 목록이 비어있는지 확인
+		if (books.isEmpty()) {
+			System.out.println("등록된 책이 없습니다.");
+		} else {
+			// 목록에 있는 각 책의 정보를 출력
+			for (Book book : books) {
+				System.out.printf("ID: %d, 제목: %s, 저자: %s, 재고: %d\n", book.getId(), book.getTitle(), book.getAuthor(),
+						book.getTotalCopies());
+			}
+		}
+	}
+
+	// 책 추가 //
+	private static void addBookFlow(Scanner scanner) {
+		try {
+			System.out.print("ISBN: ");
+			String isbn = scanner.nextLine();
+			System.out.print("제목: ");
+			String title = scanner.nextLine();
+			System.out.print("저자: ");
+			String author = scanner.nextLine();
+			System.out.print("보유 권수: ");
+			int totalCopies = Integer.parseInt(scanner.nextLine());
+
+			// App 클래스의 static 필드인 bookService에 직접 접근
+			Book book = bookService.registerBook(isbn, title, author, totalCopies);
+			System.out.printf("등록 완료 (ID: %d, 제목: %s)\n", book.getId(), book.getTitle());
+
+		} catch (NumberFormatException e) {
+			System.out.println("오류: 보유 권수는 숫자로 입력해야 합니다.");
+		} catch (IllegalStateException e) {
+			System.out.println("오류: " + e.getMessage());
+		} catch (Exception e) {
+			System.out.println("알 수 없는 오류가 발생했습니다: " + e.getMessage());
+		}
+	}
+
+	// 책 검색 //
+	private static void searchFlow(Scanner scanner) {
+		System.out.println("\n--- 책 검색 (제목, 저자 또는 ISBN) ---");
+		System.out.print("검색어 입력: ");
+		String keyword = scanner.nextLine();
+
+		if (keyword.trim().isEmpty()) {
+			System.out.println("검색어를 입력해주세요.");
+			System.out.println("--------------------");
+			return;
+		}
+
+		List<Book> foundBooks = bookService.searchBooks(keyword);
+
+		if (foundBooks.isEmpty()) {
+			System.out.printf("'%s'에 대한 검색 결과가 없습니다.\n", keyword);
+		} else {
+			System.out.printf("'%s' 검색 결과 (%d건)\n", keyword, foundBooks.size());
+			for (Book book : foundBooks) {
+				System.out.printf("ID: %d, 제목: %s, 저자: %s, ISBN: %s\n", book.getId(), book.getTitle(), book.getAuthor(),
+						book.getIsbn());
 			}
 		}
 	}
@@ -152,9 +221,6 @@ public class App {
 		return Integer.parseInt(s);
 	}
 
-	/**
-	 * 더미 회원 데이터 등록
-	 */
 	private static void seed() {
 		try {
 			memberService.signUp("정원우", "wonwoo@test.com", "1234", Role.USER);
@@ -163,5 +229,10 @@ public class App {
 		} catch (Exception ignore) {
 			// 이미 등록된 경우는 무시
 		}
+
+		bookService.registerBook("978-89-7914-874-9", "자바의 정석", "남궁성", 5);
+		bookService.registerBook("978-89-98142-35-3", "토비의 스프링 Vol.1", "이일민", 2);
+		bookService.registerBook("978-89-98142-36-0", "토비의 스프링 Vol.2", "이일민", 2);
+
 	}
 }
