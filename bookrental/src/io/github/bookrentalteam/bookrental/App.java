@@ -261,5 +261,10 @@ public class App {
 		} catch (Exception ignore) {
 			// 이미 등록된 경우는 무시
 		}
+
+		bookService.registerBook("978-89-7914-874-9", "자바의 정석", "남궁성", 5);
+		bookService.registerBook("978-89-98142-35-3", "토비의 스프링 Vol.1", "이일민", 2);
+		bookService.registerBook("978-89-98142-36-0", "토비의 스프링 Vol.2", "이일민", 2);
+
 	}
 }
