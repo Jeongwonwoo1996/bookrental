@@ -62,9 +62,9 @@ public class App {
 
 					if (memberService.getCurrentUser().getRole() == Role.ADMIN) { // 관리자 메뉴
 						switch (sel) {
-						case 1 -> addBookFlow(sc);
+						case 1 -> addBookFlow();
 						case 2 -> listBooksFlow();
-						case 3 -> searchFlow(sc);
+						case 3 -> searchFlow();
 						case 4 -> System.out.println("구현 필요"); // rentFlow();
 						case 5 -> System.out.println("구현 필요"); // returnFlow();
 						case 6 -> System.out.println("구현 필요"); // myRentalsFlow();
@@ -74,7 +74,7 @@ public class App {
 					} else { // 일반 사용자 메뉴
 						switch (sel) {
 						case 1 -> listBooksFlow();
-						case 2 -> searchFlow(sc);
+						case 2 -> searchFlow();
 						case 3 -> System.out.println("구현 필요"); // rentFlow();
 						case 4 -> System.out.println("구현 필요"); // returnFlow();
 						case 5 -> System.out.println("구현 필요"); // myRentalsFlow();
@@ -109,16 +109,16 @@ public class App {
 	}
 
 	// 책 추가 //
-	private static void addBookFlow(Scanner scanner) {
+	private static void addBookFlow() {
 		try {
 			System.out.print("ISBN: ");
-			String isbn = scanner.nextLine();
+			String isbn = App.sc.nextLine();
 			System.out.print("제목: ");
-			String title = scanner.nextLine();
+			String title = App.sc.nextLine();
 			System.out.print("저자: ");
-			String author = scanner.nextLine();
+			String author = App.sc.nextLine();
 			System.out.print("보유 권수: ");
-			int totalCopies = Integer.parseInt(scanner.nextLine());
+			int totalCopies = Integer.parseInt(App.sc.nextLine());
 
 			// App 클래스의 static 필드인 bookService에 직접 접근
 			Book book = bookService.registerBook(isbn, title, author, totalCopies);
@@ -134,10 +134,10 @@ public class App {
 	}
 
 	// 책 검색 //
-	private static void searchFlow(Scanner scanner) {
+	private static void searchFlow() {
 		System.out.println("\n--- 책 검색 (제목, 저자 또는 ISBN) ---");
 		System.out.print("검색어 입력: ");
-		String keyword = scanner.nextLine();
+		String keyword = App.sc.nextLine();
 
 		if (keyword.trim().isEmpty()) {
 			System.out.println("검색어를 입력해주세요.");
