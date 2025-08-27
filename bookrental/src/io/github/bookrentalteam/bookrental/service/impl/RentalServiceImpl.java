@@ -6,6 +6,8 @@ import java.util.List;
 import io.github.bookrentalteam.bookrental.domain.Book;
 import io.github.bookrentalteam.bookrental.domain.Member;
 import io.github.bookrentalteam.bookrental.domain.Rental;
+import io.github.bookrentalteam.bookrental.domain.RentalStatus;
+import io.github.bookrentalteam.bookrental.domain.Role;
 import io.github.bookrentalteam.bookrental.repository.RentalRepository;
 import io.github.bookrentalteam.bookrental.service.BookService;
 import io.github.bookrentalteam.bookrental.service.RentalService;
@@ -22,6 +24,16 @@ public class RentalServiceImpl implements RentalService {
 
 	@Override
 	public Rental rentBook(long bookId, Member member) {
+		// 일반 회원은 대여 권수 제한 (최대 7권)
+		if (member.getRole() == Role.USER) {
+			long rentedCount = rentalRepository.findByMemberId(member.getId()).stream()
+					.filter(r -> r.getStatus() == RentalStatus.RENTED) // 아직 반납 안 한 도서만 카운트
+					.count();
+			if (rentedCount >= 7) {
+				throw new IllegalStateException("일반 회원은 동시에 최대 7권까지 대여할 수 있습니다.");
+			}
+		}
+
 		// 도서 조회
 		Book book = bookService.getBook(bookId);
 
