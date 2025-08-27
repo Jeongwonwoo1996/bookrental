@@ -1,8 +1,10 @@
 package io.github.bookrentalteam.bookrental;
 
 import java.util.InputMismatchException;
+import java.util.List;
 import java.util.Scanner;
 
+import io.github.bookrentalteam.bookrental.domain.Book;
 import io.github.bookrentalteam.bookrental.domain.Member;
 import io.github.bookrentalteam.bookrental.domain.Rental;
 import io.github.bookrentalteam.bookrental.domain.RentalStatus;
@@ -62,9 +64,9 @@ public class App {
 
 					if (memberService.getCurrentUser().getRole() == Role.ADMIN) { // 관리자 메뉴
 						switch (sel) {
-						case 1 -> registerBookFlow();
+						case 1 -> addBookFlow();
 						case 2 -> listBooksFlow();
-						case 3 -> searchBooksFlow();
+						case 3 -> searchBookFlow();
 						case 4 -> rentBookFlow();
 						case 5 -> returnBookFlow();
 						case 6 -> extendRentalFlow();
@@ -75,7 +77,7 @@ public class App {
 					} else { // 일반 사용자 메뉴
 						switch (sel) {
 						case 1 -> listBooksFlow();
-						case 2 -> searchBooksFlow();
+						case 2 -> searchBookFlow();
 						case 3 -> rentBookFlow();
 						case 4 -> returnBookFlow();
 						case 5 -> extendRentalFlow();
@@ -122,55 +124,7 @@ public class App {
 		System.out.println("[성공] 도서 반납 완료: rentalId=" + rental.getId());
 	}
 
-	// 도서 등록
-	private static void registerBookFlow() {
-		System.out.println("[도서 등록]");
-		System.out.print("ISBN> ");
-		String isbn = sc.nextLine().trim();
-		System.out.print("제목> ");
-		String title = sc.nextLine().trim();
-		System.out.print("저자> ");
-		String author = sc.nextLine().trim();
-		System.out.println("총 권수> ");
-		int totalCopies = Integer.parseInt(sc.nextLine().trim());
-
-		try {
-			var book = bookService.registerBook(isbn, title, author, totalCopies);
-			System.out.println("[성공] 도서 등록 완료 : " + book.getTitle());
-		} catch (Exception e) {
-			System.out.println("[오류] " + e.getMessage());
-		}
-
-	}
-
-	// 도서 목록
-	private static void listBooksFlow() {
-		System.out.println("[도서 목록]");
-		var books = bookService.listBooks();
-		if (books.isEmpty()) {
-			System.out.println("등록된 도서가 없습니다.");
-		} else {
-			books.forEach(b -> System.out.printf("ID=%d, 제목=%s, 저자=%s, 재고: 현재 대여 가능 권수=%d / 총 보유 권수=%d%n", b.getId(),
-					b.getTitle(), b.getAuthor(), b.getAvailableCopies(), b.getTotalCopies()));
-		}
-
-	}
-
-	// 도서 검색
-	private static void searchBooksFlow() {
-		System.out.print("검색 키워드 > ");
-		String keyword = sc.nextLine().trim();
-		var books = bookService.searchBooks(keyword);
-		if (books.isEmpty()) {
-			System.out.println("검색 결과가 없습니다.");
-		} else {
-			books.forEach(b -> System.out.printf("ID=%d, 제목=%s, 저자=%s, 재고: 현재 대여 가능 권수=%d / 총 보유 권수=%d%n", b.getId(),
-					b.getTitle(), b.getAuthor(), b.getAvailableCopies(), b.getTotalCopies()));
-		}
-	}
-
 	// 내 대여 목록
-
 	private static void myRentalsFlow() {
 		Member current = memberService.getCurrentUser();
 		System.out.println("[내 대여 목록]");
@@ -204,6 +158,75 @@ public class App {
 		}
 	}
 
+	// 책 리스트 출력 //
+	private static void listBooksFlow() {
+		// 서비스로부터 책 목록을 가져오기
+		List<Book> books = bookService.listBooks();
+
+		// 책 목록이 비어있는지 확인
+		if (books.isEmpty()) {
+			System.out.println("등록된 도서가 없습니다.");
+		} else {
+			// 목록에 있는 각 책의 정보를 출력
+			for (Book book : books) {
+				System.out.printf("ID: %d, 제목: %s, 저자: %s, 재고: 현재 대여 가능 권수=%d / 총 보유 권수=%d%n", book.getId(),
+						book.getTitle(), book.getAuthor(), book.getAvailableCopies(), book.getTotalCopies());
+			}
+		}
+	}
+
+	// 책 추가 //
+	private static void addBookFlow() {
+		try {
+			System.out.println("[도서 등록]");
+			System.out.print("ISBN: ");
+			String isbn = App.sc.nextLine().trim();
+			System.out.print("제목: ");
+			String title = App.sc.nextLine().trim();
+			System.out.print("저자: ");
+			String author = App.sc.nextLine().trim();
+			System.out.print("보유 권수: ");
+			int totalCopies = Integer.parseInt(App.sc.nextLine().trim());
+
+			// App 클래스의 static 필드인 bookService에 직접 접근
+			Book book = bookService.registerBook(isbn, title, author, totalCopies);
+			System.out.printf("등록 완료 (ID: %d, 제목: %s)\n", book.getId(), book.getTitle());
+
+		} catch (NumberFormatException e) {
+			System.out.println("오류: 보유 권수는 숫자로 입력해야 합니다.");
+		} catch (IllegalStateException e) {
+			System.out.println("오류: " + e.getMessage());
+		} catch (Exception e) {
+			System.out.println("알 수 없는 오류가 발생했습니다: " + e.getMessage());
+		}
+	}
+
+	// 책 검색 //
+	private static void searchBookFlow() {
+		System.out.println("\n--- 도서 검색 (제목, 저자 또는 ISBN) ---");
+		System.out.print("검색어 입력: ");
+		String keyword = App.sc.nextLine().trim();
+
+		if (keyword.trim().isEmpty()) {
+			System.out.println("검색어를 입력해주세요.");
+			System.out.println("--------------------");
+			return;
+		}
+
+		List<Book> foundBooks = bookService.searchBooks(keyword);
+
+		if (foundBooks.isEmpty()) {
+			System.out.printf("'%s'에 대한 검색 결과가 없습니다.\n", keyword);
+		} else {
+			System.out.printf("'%s' 검색 결과 (%d건)\n", keyword, foundBooks.size());
+			for (Book book : foundBooks) {
+				System.out.printf("ID: %d, 제목: %s, 저자: %s, ISBN: %s\n, 재고: 현재 대여 가능 권수=%d / 총 보유 권수=%d%n", book.getId(),
+						book.getTitle(), book.getAuthor(), book.getIsbn(), book.getAvailableCopies(),
+						book.getTotalCopies());
+			}
+		}
+	}
+
 	private static void showWelcome() {
 		System.out.println("=== 도서 대여 시스템 ===");
 		System.out.println("1) 회원가입   2) 로그인   3) 종료");
@@ -231,7 +254,7 @@ public class App {
 		System.out.print("비밀번호> ");
 		String pw = sc.nextLine().trim();
 
-		// 간단히 admin@admin.com 이면 ADMIN 권한
+		// 다음과 같은 형식으로 가입될 경우 ADMIN 권한 부여
 		Role role = email.equalsIgnoreCase("admin@admin.com") ? Role.ADMIN : Role.USER;
 
 		try {
@@ -268,9 +291,6 @@ public class App {
 		return Integer.parseInt(s);
 	}
 
-	/**
-	 * 더미 회원 데이터 등록
-	 */
 	private static void seed() {
 		try {
 			memberService.signUp("정원우", "wonwoo@test.com", "1234", Role.USER);

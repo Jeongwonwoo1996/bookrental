@@ -16,10 +16,15 @@ public class BookServiceImpl implements BookService {
 		this.bookRepository = bookRepository;
 	}
 
+	// 책 등록 //
 	@Override
 	public Book registerBook(String isbn, String title, String author, int totalCopies) {
 		if (isbn == null || isbn.isBlank()) {
 			throw new ValidationException("ISBN은 필수입니다.");
+		}
+		// ISBN 중복 검사
+		if (bookRepository.findByIsbn(isbn).isPresent()) {
+			throw new IllegalStateException("이미 존재하는 ISBN입니다: " + isbn);
 		}
 		if (title == null || title.isBlank()) {
 			throw new ValidationException("제목은 필수입니다.");
@@ -46,17 +51,17 @@ public class BookServiceImpl implements BookService {
 		if (keyword == null || keyword.isBlank()) {
 			return listBooks(); // 검색어 없으면 전체 목록 반환
 		}
-
-		String lower = keyword.toLowerCase();
-		return bookRepository
-				.findAll().stream().filter(b -> b.getTitle().toLowerCase().contains(lower)
-						|| b.getAuthor().toLowerCase().contains(lower) || b.getIsbn().toLowerCase().contains(lower))
+		return bookRepository.findAll().stream()
+				.filter(book -> book.getTitle().toLowerCase().contains(keyword.toLowerCase())
+						|| book.getAuthor().toLowerCase().contains(keyword.toLowerCase())
+						|| book.getIsbn().toLowerCase().contains(keyword.toLowerCase()))
 				.collect(Collectors.toList());
 	}
 
 	@Override
 	public Book getBook(long id) {
-		return bookRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("해당 도서를 찾을 수 없습니다."));
+		return bookRepository.findById(id)
+				.orElseThrow(() -> new IllegalArgumentException("ID에 해당하는 책을 찾을 수 없습니다: " + id));
 	}
 
 }
