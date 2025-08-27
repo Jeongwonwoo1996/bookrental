@@ -174,16 +174,34 @@ public class App {
 	private static void myRentalsFlow() {
 		Member current = memberService.getCurrentUser();
 		System.out.println("[내 대여 목록]");
-		rentalService.getRentalsByMember(current)
-				.forEach(r -> System.out.printf("대여ID=%d, BookID=%d, 상태=%s, 대여일=%s, 반납예정일=%s%n", r.getId(),
-						r.getBookId(), r.getStatus(), r.getRentedAt(), r.getDueAt()));
+		rentalService.getRentalsByMember(current).forEach(r -> {
+			String returnedAt = (r.getReturnedAt() != null) ? r.getReturnedAt().toString() : "대여 진행중"; // ✅ 여기서 사용
+
+			System.out.printf("대여ID=%d, BookID=%d, 상태=%s, 대여일=%s, 반납예정일=%s, 반납완료일=%s, 연장횟수=%d%n", r.getId(),
+					r.getBookId(), r.getStatus(), r.getRentedAt(), r.getDueAt(), returnedAt, r.getExtensionCount());
+		});
 	}
 
 	private static void extendRentalFlow() {
-		System.out.println("연장할 대여 ID> ");
+		Member current = memberService.getCurrentUser();
+		System.out.println("[연장 가능한 대여 목록]");
+		var rentals = rentalService.getRentalsByMember(current);
+		rentals.stream().filter(r -> r.getStatus() == RentalStatus.RENTED).forEach(r -> {
+			String returnedAt = (r.getReturnedAt() != null) ? r.getReturnedAt().toString() : "대여 진행중"; // ✅ 동일하게 적용
+
+			System.out.printf("대여ID=%d, BookID=%d, 상태=%s, 대여일=%s, 반납예정일=%s, 반납완료일=%s, 연장횟수=%d%n", r.getId(),
+					r.getBookId(), r.getStatus(), r.getRentedAt(), r.getDueAt(), returnedAt, r.getExtensionCount());
+		});
+
+		System.out.print("연장할 대여 ID> ");
 		long rentalId = Long.parseLong(sc.nextLine().trim());
-		Rental rental = rentalService.extendRental(rentalId);
-		System.out.println("[성공] 대여 연장 완료: rentalId=" + rental.getId() + ", 반납예정일=" + rental.getDueAt());
+
+		try {
+			Rental rental = rentalService.extendRental(rentalId);
+			System.out.println("[성공] 대여 연장 완료: rentalId=" + rental.getId() + ", 반납예정일=" + rental.getDueAt());
+		} catch (Exception e) {
+			System.out.println("[오류] " + e.getMessage());
+		}
 	}
 
 	private static void showWelcome() {
