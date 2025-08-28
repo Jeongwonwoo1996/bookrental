@@ -125,7 +125,9 @@ public class App {
 
 		try {
 			Rental rental = rentalService.rentBook(bookId, current);
-			System.out.println(GREEN + "✅ [성공] 도서 대여 완료! rentalId=" + rental.getId() + RESET);
+			Book book = bookService.getBook(rental.getBookId()); // 책 제목 조회
+			String bookTitle = (book != null) ? book.getTitle() : "(알 수 없음)";
+			System.out.println(GREEN + "✅ [성공] 도서 대여 완료! " + bookTitle + RESET);
 		} catch (Exception e) {
 			System.out.println(RED + "❌ [오류] " + e.getMessage() + RESET);
 		}
@@ -145,15 +147,20 @@ public class App {
 		}
 
 		System.out.println(CYAN + "[내 대여 목록]" + RESET);
-		rentedBooks.forEach(
-				r -> System.out.printf("  ▶ 대여ID=%d | BookId=%d | 반납예정일=%s%n", r.getId(), r.getBookId(), r.getDueAt()));
+		rentedBooks.forEach(r -> {
+			Book book = bookService.getBook(r.getBookId()); // 책 제목 가져오기
+			String bookTitle = (book != null) ? book.getTitle() : "(알 수 없음)";
+			System.out.printf("  ▶ 대여ID=%d | 도서명=%s | 반납예정일=%s%n", r.getId(), bookTitle, r.getDueAt());
+		});
 
 		System.out.print("↩️ 반납할 대여 ID> ");
 		long rentalId = Long.parseLong(sc.nextLine().trim());
 
 		try {
 			Rental rental = rentalService.returnBook(rentalId);
-			System.out.println(GREEN + "✅ [성공] 도서 반납 완료: rentalId=" + rental.getId() + RESET);
+			Book book = bookService.getBook(rental.getBookId()); // 책 제목 조회
+			String bookTitle = (book != null) ? book.getTitle() : "(알 수 없음)";
+			System.out.println(GREEN + "✅ [성공] 도서 반납 완료! " + bookTitle + RESET);
 		} catch (Exception e) {
 			System.out.println(RED + "❌ [오류] " + e.getMessage() + RESET);
 		}
@@ -174,8 +181,10 @@ public class App {
 		System.out.println(CYAN + "[연장 가능한 대여 목록]" + RESET);
 		extendable.forEach(r -> {
 			String returnedAt = (r.getReturnedAt() != null) ? r.getReturnedAt().toString() : "대여 진행중";
-			System.out.printf("  ▶ 대여ID=%d | BookID=%d | 상태=%s | 대여일=%s | 반납예정일=%s | 반납완료일=%s | 연장횟수=%d%n", r.getId(),
-					r.getBookId(), r.getStatus(), r.getRentedAt(), r.getDueAt(), returnedAt, r.getExtensionCount());
+			Book book = bookService.getBook(r.getBookId()); // 제목 표시
+			String bookTitle = (book != null) ? book.getTitle() : "(알 수 없음)";
+			System.out.printf("  ▶ 대여ID=%d | 도서명=%s | 상태=%s | 대여일=%s | 반납예정일=%s | 반납완료일=%s | 연장횟수=%d%n", r.getId(),
+					bookTitle, r.getStatus(), r.getRentedAt(), r.getDueAt(), returnedAt, r.getExtensionCount());
 		});
 
 		System.out.print("🔄 연장할 대여 ID> ");
@@ -183,8 +192,9 @@ public class App {
 
 		try {
 			Rental rental = rentalService.extendRental(rentalId);
-			System.out.println(
-					GREEN + "✅ [성공] 대여 연장 완료: rentalId=" + rental.getId() + ", 반납예정일=" + rental.getDueAt() + RESET);
+			Book book = bookService.getBook(rental.getBookId()); // ✅ 책 제목 조회
+			String bookTitle = (book != null) ? book.getTitle() : "(알 수 없음)";
+			System.out.println(GREEN + "✅ [성공] 대여 연장 완료! " + bookTitle + ", 새 반납예정일=" + rental.getDueAt() + RESET);
 		} catch (Exception e) {
 			System.out.println(RED + "❌ [오류] " + e.getMessage() + RESET);
 		}
@@ -203,8 +213,10 @@ public class App {
 		System.out.println(CYAN + "[내 대여 목록]" + RESET);
 		rentals.forEach(r -> {
 			String returnedAt = (r.getReturnedAt() != null) ? r.getReturnedAt().toString() : "대여 진행중";
-			System.out.printf("  ▶ 대여ID=%d | BookID=%d | 상태=%s | 대여일=%s | 반납예정일=%s | 반납완료일=%s | 연장횟수=%d%n", r.getId(),
-					r.getBookId(), r.getStatus(), r.getRentedAt(), r.getDueAt(), returnedAt, r.getExtensionCount());
+			Book book = bookService.getBook(r.getBookId()); // BookService에서 제목 가져오기
+			String bookTitle = (book != null) ? book.getTitle() : "(알 수 없음)";
+			System.out.printf("  ▶ 대여ID=%d | 도서명=%s | 상태=%s | 대여일=%s | 반납예정일=%s | 반납완료일=%s | 연장횟수=%d%n", r.getId(),
+					bookTitle, r.getStatus(), r.getRentedAt(), r.getDueAt(), returnedAt, r.getExtensionCount());
 		});
 	}
 
