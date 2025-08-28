@@ -1,5 +1,7 @@
 package io.github.bookrentalteam.bookrental;
 
+import java.lang.reflect.Field;
+import java.time.LocalDate;
 import java.util.InputMismatchException;
 import java.util.List;
 import java.util.Scanner;
@@ -38,7 +40,8 @@ public class App {
 	// Service 생성 (의존성 주입)
 	private static final MemberService memberService = new MemberServiceImpl(memberRepository);
 	private static final BookService bookService = new BookServiceImpl(bookRepository);
-	private static final RentalService rentalService = new RentalServiceImpl(rentalRepository, bookService);
+	private static final RentalService rentalService = new RentalServiceImpl(rentalRepository, memberRepository,
+			bookService);
 
 	public static void main(String[] args) {
 		seed(); // 더미 회원 등록
@@ -97,25 +100,46 @@ public class App {
 
 	// 도서 대여
 	private static void rentBookFlow() {
+		Member current = memberService.getCurrentUser();
+
+		// 전체 도서 중 대여 가능한 도서만 필터링
+		var availableBooks = bookService.listBooks().stream().filter(b -> b.getAvailableCopies() > 0).toList();
+
+		if (availableBooks.isEmpty()) {
+			System.out.println("[안내] 대여 가능한 도서가 없습니다.");
+			return;
+		}
+
 		System.out.println("[대여 가능한 도서 목록]");
-		var books = bookService.listBooks();
-		books.stream().filter(b -> b.getAvailableCopies() > 0)
-				.forEach(b -> System.out.printf("ID=%d, 제목=%s, 저자=%s, 재고: 현재 대여 가능 권수=%d / 총 보유 권수=%d%n", b.getId(),
-						b.getTitle(), b.getAuthor(), b.getAvailableCopies(), b.getTotalCopies()));
+		availableBooks.forEach(b -> System.out.printf("ID=%d, 제목=%s, 저자=%s, 재고: 현재 대여 가능 권수=%d / 총 보유 권수=%d%n",
+				b.getId(), b.getTitle(), b.getAuthor(), b.getAvailableCopies(), b.getTotalCopies()));
 
 		System.out.print("대여할 도서 ID> ");
 		long bookId = Long.parseLong(sc.nextLine().trim());
-		Member current = memberService.getCurrentUser();
-		Rental rental = rentalService.rentBook(bookId, current);
-		System.out.println("[성공] 도서 대여 완료: rentalId=" + rental.getId());
+
+		try {
+			Rental rental = rentalService.rentBook(bookId, current);
+			System.out.println("[성공] 도서 대여 완료: rentalId=" + rental.getId());
+		} catch (Exception e) {
+			System.out.println("[오류] " + e.getMessage());
+		}
 	}
 
 	// 도서 반납
 	private static void returnBookFlow() {
 		Member currentUser = memberService.getCurrentUser();
-		System.out.println("[내 대여 목록]");
 		var rentals = rentalService.getRentalsByMember(currentUser);
-		rentals.stream().filter(r -> r.getStatus() == RentalStatus.RENTED).forEach(
+
+		// 반납 가능한 도서만 필터링
+		var rentedBooks = rentals.stream().filter(r -> r.getStatus() == RentalStatus.RENTED).toList();
+
+		if (rentedBooks.isEmpty()) {
+			System.out.println("[안내] 반납할 도서가 없습니다.");
+			return;
+		}
+
+		System.out.println("[내 대여 목록]");
+		rentedBooks.forEach(
 				r -> System.out.printf("대여ID=%d, BookId=%d, 반납예정일=%s%n", r.getId(), r.getBookId(), r.getDueAt()));
 
 		System.out.print("반납할 대여 ID> ");
@@ -124,25 +148,22 @@ public class App {
 		System.out.println("[성공] 도서 반납 완료: rentalId=" + rental.getId());
 	}
 
-	// 내 대여 목록
-	private static void myRentalsFlow() {
-		Member current = memberService.getCurrentUser();
-		System.out.println("[내 대여 목록]");
-		rentalService.getRentalsByMember(current).forEach(r -> {
-			String returnedAt = (r.getReturnedAt() != null) ? r.getReturnedAt().toString() : "대여 진행중"; // ✅ 여기서 사용
-
-			System.out.printf("대여ID=%d, BookID=%d, 상태=%s, 대여일=%s, 반납예정일=%s, 반납완료일=%s, 연장횟수=%d%n", r.getId(),
-					r.getBookId(), r.getStatus(), r.getRentedAt(), r.getDueAt(), returnedAt, r.getExtensionCount());
-		});
-	}
-
 	private static void extendRentalFlow() {
 		Member current = memberService.getCurrentUser();
-		System.out.println("[연장 가능한 대여 목록]");
 		var rentals = rentalService.getRentalsByMember(current);
-		rentals.stream().filter(r -> r.getStatus() == RentalStatus.RENTED).forEach(r -> {
-			String returnedAt = (r.getReturnedAt() != null) ? r.getReturnedAt().toString() : "대여 진행중"; // ✅ 동일하게 적용
 
+		// 연장 가능한 도서만 필터링
+		var extendable = rentals.stream().filter(r -> r.getStatus() == RentalStatus.RENTED) // 반납 안 한 것만
+				.toList();
+
+		if (extendable.isEmpty()) {
+			System.out.println("[안내] 연장할 도서가 없습니다.");
+			return;
+		}
+
+		System.out.println("[연장 가능한 대여 목록]");
+		extendable.forEach(r -> {
+			String returnedAt = (r.getReturnedAt() != null) ? r.getReturnedAt().toString() : "대여 진행중";
 			System.out.printf("대여ID=%d, BookID=%d, 상태=%s, 대여일=%s, 반납예정일=%s, 반납완료일=%s, 연장횟수=%d%n", r.getId(),
 					r.getBookId(), r.getStatus(), r.getRentedAt(), r.getDueAt(), returnedAt, r.getExtensionCount());
 		});
@@ -156,6 +177,24 @@ public class App {
 		} catch (Exception e) {
 			System.out.println("[오류] " + e.getMessage());
 		}
+	}
+
+	// 내 대여 목록
+	private static void myRentalsFlow() {
+		Member current = memberService.getCurrentUser();
+		var rentals = rentalService.getRentalsByMember(current);
+
+		if (rentals.isEmpty()) {
+			System.out.println("[안내] 대여 중인 도서가 없습니다.");
+			return;
+		}
+
+		System.out.println("[내 대여 목록]");
+		rentals.forEach(r -> {
+			String returnedAt = (r.getReturnedAt() != null) ? r.getReturnedAt().toString() : "대여 진행중"; // ✅ 반납 안 했으면 표시
+			System.out.printf("대여ID=%d, BookID=%d, 상태=%s, 대여일=%s, 반납예정일=%s, 반납완료일=%s, 연장횟수=%d%n", r.getId(),
+					r.getBookId(), r.getStatus(), r.getRentedAt(), r.getDueAt(), returnedAt, r.getExtensionCount());
+		});
 	}
 
 	// 책 리스트 출력 //
@@ -293,16 +332,42 @@ public class App {
 
 	private static void seed() {
 		try {
+			// 기본 회원
 			memberService.signUp("정원우", "wonwoo@test.com", "1234", Role.USER);
 			memberService.signUp("김태영", "taeyoung@test.com", "1234", Role.USER);
 			memberService.signUp("관리자", "admin@admin.com", "1234", Role.ADMIN);
+
+			// 연체 테스트 회원
+			Member overdueUser = memberService.signUp("연체회원", "overdue@test.com", "1234", Role.USER);
+
+			// 정상 도서 등록
+			bookService.registerBook("978-89-7914-874-9", "자바의 정석", "남궁성", 5);
+			bookService.registerBook("978-89-98142-35-3", "토비의 스프링 Vol.1", "이일민", 2);
+			bookService.registerBook("978-89-98142-36-0", "토비의 스프링 Vol.2", "이일민", 2);
+
+			// 연체 도서 등록
+			var overdueBook = bookService.registerBook("978-89-94492-00-1", "자바의 정석 4판", "남궁성", 1);
+			// 연체된 대여 데이터 강제로 생성
+			Rental overdueRental = new Rental(overdueBook.getId(), overdueUser.getId());
+			// 대여일을 과거로 설정해서 연체 상태 만들기
+			Field rentedAtField = Rental.class.getDeclaredField("rentedAt");
+			Field dueAtField = Rental.class.getDeclaredField("dueAt");
+			rentedAtField.setAccessible(true);
+			dueAtField.setAccessible(true);
+
+			// 20일 전 대여 → 반납예정일은 14일 전 → 현재는 연체 6일 상태
+			LocalDate rentedAt = LocalDate.now().minusDays(20);
+			rentedAtField.set(overdueRental, rentedAt);
+			dueAtField.set(overdueRental, rentedAt.plusDays(14));
+
+			overdueBook.rent();// 재고 감소 반영
+			rentalRepository.save(overdueRental);
+
+			System.out.println("[Seed] 연체회원(overdue@test.com) 계정 생성 및 연체 대여 데이터 삽입 완료");
+
 		} catch (Exception ignore) {
 			// 이미 등록된 경우는 무시
 		}
-
-		bookService.registerBook("978-89-7914-874-9", "자바의 정석", "남궁성", 5);
-		bookService.registerBook("978-89-98142-35-3", "토비의 스프링 Vol.1", "이일민", 2);
-		bookService.registerBook("978-89-98142-36-0", "토비의 스프링 Vol.2", "이일민", 2);
 
 	}
 }

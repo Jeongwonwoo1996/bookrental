@@ -8,6 +8,7 @@ import io.github.bookrentalteam.bookrental.domain.Member;
 import io.github.bookrentalteam.bookrental.domain.Rental;
 import io.github.bookrentalteam.bookrental.domain.RentalStatus;
 import io.github.bookrentalteam.bookrental.domain.Role;
+import io.github.bookrentalteam.bookrental.repository.MemberRepository;
 import io.github.bookrentalteam.bookrental.repository.RentalRepository;
 import io.github.bookrentalteam.bookrental.service.BookService;
 import io.github.bookrentalteam.bookrental.service.RentalService;
@@ -15,15 +16,29 @@ import io.github.bookrentalteam.bookrental.service.RentalService;
 public class RentalServiceImpl implements RentalService {
 
 	private final RentalRepository rentalRepository;
+	private final MemberRepository memberRepository;
 	private final BookService bookService;
 
-	public RentalServiceImpl(RentalRepository rentalRepository, BookService bookService) {
+	public RentalServiceImpl(RentalRepository rentalRepository, MemberRepository memberRepository,
+			BookService bookService) {
 		this.rentalRepository = rentalRepository;
+		this.memberRepository = memberRepository;
 		this.bookService = bookService;
 	}
 
 	@Override
 	public Rental rentBook(long bookId, Member member) {
+		// 제재 여부 확인
+		if (member.isSuspended()) {
+			throw new IllegalStateException("현재 대여 정지 상태입니다. 해제일: " + member.getSuspendUntil());
+		}
+
+		// 연체 도서 여부 확인
+		boolean hasOverdue = rentalRepository.findByMemberId(member.getId()).stream().anyMatch(Rental::isOverdue);
+		if (hasOverdue) {
+			throw new IllegalStateException("연체된 도서가 있어 대여할 수 없습니다.");
+		}
+
 		// 일반 회원은 대여 권수 제한 (최대 7권)
 		if (member.getRole() == Role.USER) {
 			long rentedCount = rentalRepository.findByMemberId(member.getId()).stream()
@@ -34,10 +49,8 @@ public class RentalServiceImpl implements RentalService {
 			}
 		}
 
-		// 도서 조회
+		// 도서 조회 및 재고 확인
 		Book book = bookService.getBook(bookId);
-
-		// 재고 확인
 		if (!book.rent()) {
 			throw new IllegalStateException("대여 가능한 재고가 없습니다.");
 		}
@@ -53,10 +66,20 @@ public class RentalServiceImpl implements RentalService {
 		Rental rental = rentalRepository.findById(rentalId)
 				.orElseThrow(() -> new IllegalArgumentException("해당 대여 기록을 찾을 수 없습니다."));
 
-		// 대여 상태 변경
+		// 반납 전에 연체 여부 확인 → 연체 일수만큼 정지
+		if (rental.isOverdue()) {
+			long overdueDays = rental.overdueDays();
+			memberRepository.findById(rental.getMemberId()).ifPresent(m -> {
+				m.suspend((int) overdueDays);
+				System.out.printf("[제재] 회원 %s 연체 %d일 → %d일 대여 정지 (해제일: %s)%n", m.getName(), overdueDays, overdueDays,
+						m.getSuspendUntil());
+			});
+		}
+
+		// 반납 처리
 		rental.markReturned(LocalDate.now());
 
-		// 반납 시 책 재고 증가
+		// 도서 재고 복원
 		Book book = bookService.getBook(rental.getBookId());
 		book.returnBook();
 
@@ -74,8 +97,10 @@ public class RentalServiceImpl implements RentalService {
 		List<Rental> rentals = getRentalsByMember(member);
 		for (Rental r : rentals) {
 			if (r.isOverdue()) {
-				System.out.printf("[경고] 회원 %s 연체 %d일 발생%n", member.getName(), r.overdueDays());
-				// TODO: Member 엔티티에 제재(suspendUntil 등) 처리 추가 예정
+				long days = r.overdueDays();
+				member.suspend((int) days); // ✅ 연체 일수만큼 정지
+				System.out.printf("[경고] 회원 %s 연체 %d일 → %d일 대여 정지%n", member.getName(), days, days);
+
 			}
 		}
 	}
@@ -90,6 +115,11 @@ public class RentalServiceImpl implements RentalService {
 		boolean hasOverdue = rentals.stream().anyMatch(Rental::isOverdue);
 		if (hasOverdue) {
 			throw new IllegalStateException("연체된 도서가 있어 연장할 수 없습니다.");
+		}
+
+		// 제재 여부 확인
+		if (memberRepository.findById(rental.getMemberId()).get().isSuspended()) {
+			throw new IllegalStateException("대여 정지 상태에서는 연장할 수 없습니다.");
 		}
 
 		rental.extend(); // Rental의 연장 로직 실행
