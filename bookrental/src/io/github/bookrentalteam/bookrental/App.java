@@ -394,7 +394,7 @@ public class App {
 			overdueBook.rent();// 재고 감소 반영
 			rentalRepository.save(overdueRental);
 
-			System.out.println("[Seed] 연체회원(overdue@test.com) 계정 생성 및 연체 대여 데이터 삽입 완료");
+//			System.out.println("[Seed] 연체회원(overdue@test.com) 계정 생성 및 연체 대여 데이터 삽입 완료");
 
 		} catch (Exception ignore) {
 			// 이미 등록된 경우는 무시
