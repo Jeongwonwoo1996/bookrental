@@ -1,18 +1,25 @@
 package io.github.bookrentalteam.bookrental.repository;
 
+import java.sql.Connection;
 import java.util.List;
-import java.util.Optional;
 
 import io.github.bookrentalteam.bookrental.domain.Book;
 
 public interface BookRepository {
-	void save(Book book);
+	long save(Book book);
 
-	Optional<Book> findById(Long id);
+	Book findById(long id);
+
+	Book findByIsbn(String isbn);
 
 	List<Book> findAll();
 
-	void delete(Long id);
+	void updateCopies(long bookId, int totalCopies, int availableCopies);
 
-	Optional<Book> findByIsbn(String isbn); // ISBN으로 책을 찾는 메서드 추가
+	// 트랜잭션용 (대여/반납 시)
+	int decreaseAvailable(Connection conn, long bookId); // 1 감소(재고 있으면 1 반환)
+
+	int increaseAvailable(Connection conn, long bookId); // 1 증가
+
+	int lockAndGetAvailable(Connection conn, long bookId); // SELECT ... FOR UPDATE
 }

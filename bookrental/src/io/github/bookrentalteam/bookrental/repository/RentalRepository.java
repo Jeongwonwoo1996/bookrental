@@ -1,18 +1,14 @@
 package io.github.bookrentalteam.bookrental.repository;
 
-import java.util.List;
-import java.util.Optional;
+import java.sql.Connection;
 
 import io.github.bookrentalteam.bookrental.domain.Rental;
+import io.github.bookrentalteam.bookrental.domain.RentalStatus;
 
 public interface RentalRepository {
-	void save(Rental rental);
+	long save(Connection conn, Rental rental);
 
-	Optional<Rental> findById(Long id);
+	Rental findById(Connection conn, long rentalId);
 
-	List<Rental> findAll();
-
-	List<Rental> findByMemberId(Long memberId); // 내 대여목록 조회용
-
-	void delete(Long id);
+	void updateStatus(Connection conn, long rentalId, RentalStatus status);
 }
