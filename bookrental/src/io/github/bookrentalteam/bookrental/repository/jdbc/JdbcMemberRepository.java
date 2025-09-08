@@ -27,7 +27,7 @@ public class JdbcMemberRepository implements MemberRepository {
 				PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 			ps.setString(1, m.getName());
 			ps.setString(2, m.getEmail());
-			ps.setString(3, /* hashed */ getHashed(m));
+			ps.setString(3, m.getPasswordHashed());
 			ps.setString(4, m.getRole().name());
 			if (m.getSuspendUntil() != null) {
 				ps.setDate(5, Date.valueOf(m.getSuspendUntil()));
@@ -94,13 +94,6 @@ public class JdbcMemberRepository implements MemberRepository {
 		Timestamp up = rs.getTimestamp("updated_at");
 		m.setUpdatedAt(up != null ? up.toLocalDateTime() : null);
 		return m;
-	}
-
-	private String getHashed(Member m) {
-		// 이미 해시된 값이 들어오도록 설계하셨으니 그대로 사용.
-		// 필요 시 여기서 Passwords.hash(...) 호출하도록 변경 가능.
-		return m.authenticate("___SENTINEL___") ? "" : m.toString(); // 사용 안함: 더미
-		// ↑ 위 한 줄은 컴파일용 자리채움입니다. 실제로는 m 내부의 해시 필드 getter를 쓰세요.
 	}
 
 	// JdbcMemberRepository 구현

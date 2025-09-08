@@ -135,4 +135,10 @@ public class Member {
 	public void setUpdatedAt(LocalDateTime updatedAt) {
 		this.updatedAt = updatedAt;
 	}
+
+	// Member.java
+	public String getPasswordHashed() {
+		return this.password;
+	}
+
 }
