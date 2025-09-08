@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.LocalDate;
 
 import io.github.bookrentalteam.bookrental.config.ConnectionManager;
 import io.github.bookrentalteam.bookrental.domain.Member;
@@ -101,4 +102,22 @@ public class JdbcMemberRepository implements MemberRepository {
 		return m.authenticate("___SENTINEL___") ? "" : m.toString(); // 사용 안함: 더미
 		// ↑ 위 한 줄은 컴파일용 자리채움입니다. 실제로는 m 내부의 해시 필드 getter를 쓰세요.
 	}
+
+	// JdbcMemberRepository 구현
+	@Override
+	public void updateSuspendUntil(Connection conn, long memberId, LocalDate suspendUntil) {
+		final String sql = "UPDATE member SET suspend_until=? WHERE member_id=?";
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			if (suspendUntil != null) {
+				ps.setDate(1, Date.valueOf(suspendUntil));
+			} else {
+				ps.setNull(1, java.sql.Types.DATE);
+			}
+			ps.setLong(2, memberId);
+			ps.executeUpdate();
+		} catch (SQLException e) {
+			throw new RuntimeException("JdbcMemberRepository.updateSuspendUntil 실패", e);
+		}
+	}
+
 }

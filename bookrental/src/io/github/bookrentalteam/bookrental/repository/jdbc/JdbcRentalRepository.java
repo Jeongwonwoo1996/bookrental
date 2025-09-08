@@ -7,6 +7,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import io.github.bookrentalteam.bookrental.domain.Rental;
 import io.github.bookrentalteam.bookrental.domain.RentalStatus;
@@ -98,4 +100,28 @@ public class JdbcRentalRepository implements RentalRepository {
 		}
 		return r;
 	}
+
+	// JdbcRentalRepository 구현
+	@Override
+	public List<Rental> findByMemberId(Connection conn, long memberId) {
+		final String sql = """
+				SELECT rental_id, member_id, rented_at, rental_status, created_at, updated_at
+				  FROM rental
+				 WHERE member_id=?
+				 ORDER BY rented_at DESC
+				""";
+		List<Rental> list = new ArrayList<>();
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setLong(1, memberId);
+			try (ResultSet rs = ps.executeQuery()) {
+				while (rs.next()) {
+					list.add(map(rs));
+				}
+			}
+			return list;
+		} catch (SQLException e) {
+			throw new RuntimeException("JdbcRentalRepository.findByMemberId 실패", e);
+		}
+	}
+
 }
