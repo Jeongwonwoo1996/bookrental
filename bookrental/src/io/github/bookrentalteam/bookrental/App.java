@@ -1,22 +1,25 @@
 package io.github.bookrentalteam.bookrental;
 
-import java.lang.reflect.Field;
-import java.time.LocalDate;
-import java.util.InputMismatchException;
+import java.sql.Connection;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Scanner;
 
+import io.github.bookrentalteam.bookrental.config.ConnectionManager;
 import io.github.bookrentalteam.bookrental.domain.Book;
 import io.github.bookrentalteam.bookrental.domain.Member;
 import io.github.bookrentalteam.bookrental.domain.Rental;
-import io.github.bookrentalteam.bookrental.domain.RentalStatus;
+import io.github.bookrentalteam.bookrental.domain.RentalDetail;
 import io.github.bookrentalteam.bookrental.domain.Role;
 import io.github.bookrentalteam.bookrental.repository.BookRepository;
 import io.github.bookrentalteam.bookrental.repository.MemberRepository;
+import io.github.bookrentalteam.bookrental.repository.RentalDetailRepository;
 import io.github.bookrentalteam.bookrental.repository.RentalRepository;
-import io.github.bookrentalteam.bookrental.repository.impl.InMemoryBookRepository;
-import io.github.bookrentalteam.bookrental.repository.impl.InMemoryMemberRepository;
-import io.github.bookrentalteam.bookrental.repository.impl.InMemoryRentalRepository;
+import io.github.bookrentalteam.bookrental.repository.jdbc.JdbcBookRepository;
+import io.github.bookrentalteam.bookrental.repository.jdbc.JdbcMemberRepository;
+import io.github.bookrentalteam.bookrental.repository.jdbc.JdbcRentalDetailRepository;
+import io.github.bookrentalteam.bookrental.repository.jdbc.JdbcRentalRepository;
 import io.github.bookrentalteam.bookrental.service.BookService;
 import io.github.bookrentalteam.bookrental.service.MemberService;
 import io.github.bookrentalteam.bookrental.service.RentalService;
@@ -35,23 +38,22 @@ public class App {
 	private static final String YELLOW = "\u001B[33m";
 	private static final String CYAN = "\u001B[36m";
 
-	// Repository 생성
-	private static final MemberRepository memberRepository = new InMemoryMemberRepository();
-	private static final BookRepository bookRepository = new InMemoryBookRepository();
-	private static final RentalRepository rentalRepository = new InMemoryRentalRepository();
+	// ===== JDBC Repository 주입 =====
+	private static final MemberRepository memberRepository = new JdbcMemberRepository();
+	private static final BookRepository bookRepository = new JdbcBookRepository();
+	private static final RentalRepository rentalRepository = new JdbcRentalRepository();
+	private static final RentalDetailRepository rentalDetailRepository = new JdbcRentalDetailRepository();
 
-	// Service 생성 (의존성 주입)
+	// ===== Service 주입 =====
 	private static final MemberService memberService = new MemberServiceImpl(memberRepository);
 	private static final BookService bookService = new BookServiceImpl(bookRepository);
-	private static final RentalService rentalService = new RentalServiceImpl(rentalRepository, memberRepository,
-			bookService);
+	private static final RentalService rentalService = new RentalServiceImpl(rentalRepository, rentalDetailRepository,
+			bookRepository, memberRepository);
 
 	public static void main(String[] args) {
-		seed(); // 더미 회원 등록
-
 		while (true) {
 			try {
-				if (memberService.getCurrentUser() == null) { // 로그인 안 된 상태
+				if (memberService.getCurrentUser() == null) { // 로그인 전
 					showWelcome();
 					int sel = promptInt("👉 메뉴 선택");
 
@@ -68,41 +70,43 @@ public class App {
 					showMainMenu();
 					int sel = promptInt("👉 메뉴 선택");
 
-					if (memberService.getCurrentUser().getRole() == Role.ADMIN) { // 관리자 메뉴
+					if (memberService.getCurrentUser().getRole() == Role.ADMIN) { // 관리자
 						switch (sel) {
 						case 1 -> addBookFlow();
 						case 2 -> listBooksFlow();
 						case 3 -> searchBookFlow();
-						case 4 -> rentBookFlow();
-						case 5 -> returnBookFlow();
-						case 6 -> extendRentalFlow();
+						case 4 -> rentBooksFlow(); // 다건 대여
+						case 5 -> returnBooksFlow(); // 다건 반납
+						case 6 -> extendBooksFlow(); // 다건 연장
 						case 7 -> myRentalsFlow();
 						case 0 -> logout();
 						default -> System.out.println(RED + "❌ [오류] 올바른 메뉴 번호를 입력해주세요." + RESET);
 						}
-					} else { // 일반 사용자 메뉴
+					} else { // 일반 사용자
 						switch (sel) {
 						case 1 -> listBooksFlow();
 						case 2 -> searchBookFlow();
-						case 3 -> rentBookFlow();
-						case 4 -> returnBookFlow();
-						case 5 -> extendRentalFlow();
+						case 3 -> rentBooksFlow();
+						case 4 -> returnBooksFlow();
+						case 5 -> extendBooksFlow();
 						case 6 -> myRentalsFlow();
 						case 0 -> logout();
 						default -> System.out.println(RED + "❌ [오류] 올바른 메뉴 번호를 입력해주세요." + RESET);
 						}
 					}
 				}
-			} catch (InputMismatchException e) {
+			} catch (NumberFormatException e) {
 				System.out.println(RED + "❌ [오류] 숫자를 입력해주세요." + RESET);
 			} catch (Exception e) {
-				System.out.println(RED + "❌ [오류] " + e.getMessage() + RESET);
+				System.out.println(RED + "❌ [오류] " + (e.getMessage() != null ? e.getMessage() : e.toString()) + RESET);
 			}
 		}
 	}
 
-	// 도서 대여
-	private static void rentBookFlow() {
+	// ==========================
+	// 대여(다건)
+	// ==========================
+	private static void rentBooksFlow() {
 		Member current = memberService.getCurrentUser();
 		var availableBooks = bookService.listBooks().stream().filter(b -> b.getAvailableCopies() > 0).toList();
 
@@ -115,106 +119,122 @@ public class App {
 		availableBooks.forEach(b -> System.out.printf("  ▶ ID=%d | 제목=%s | 저자=%s | 재고=%d/%d%n", b.getId(), b.getTitle(),
 				b.getAuthor(), b.getAvailableCopies(), b.getTotalCopies()));
 
-		System.out.print("📌 대여할 도서 ID 입력> ");
-		long bookId = Long.parseLong(sc.nextLine().trim());
+		System.out.print("📌 대여할 도서 ID들을 입력(쉼표로 구분, 예: 1,3,5)> ");
+		List<Long> bookIds = parseIdList(sc.nextLine());
 
 		try {
-			Rental rental = rentalService.rentBook(bookId, current);
-			Book book = bookService.getBook(rental.getBookId());
-			String bookTitle = (book != null) ? book.getTitle() : "(알 수 없음)";
-			System.out.println(GREEN + "✅ [성공] '" + bookTitle + "' 도서 대여 완료!" + RESET);
+			Rental rentalHeader = rentalService.rentBooks(current, bookIds);
+			System.out.println(GREEN + "✅ [성공] 대여 완료! (rentalId=" + rentalHeader.getId() + ")" + RESET);
 		} catch (Exception e) {
 			System.out.println(RED + "❌ [오류] " + e.getMessage() + RESET);
 		}
 	}
 
-	// 도서 반납
-	private static void returnBookFlow() {
-		Member currentUser = memberService.getCurrentUser();
-		var rentals = rentalService.getRentalsByMember(currentUser);
-		var rentedBooks = rentals.stream().filter(r -> r.getStatus() == RentalStatus.RENTED).toList();
-
-		if (rentedBooks.isEmpty()) {
-			System.out.println(YELLOW + "⚠️ [안내] 반납할 도서가 없습니다." + RESET);
-			return;
-		}
-
-		System.out.println(CYAN + "\n📚 [내 대여 목록]" + RESET);
-		rentedBooks.forEach(r -> {
-			Book book = bookService.getBook(r.getBookId());
-			String bookTitle = (book != null) ? book.getTitle() : "(알 수 없음)";
-			System.out.printf("  ▶ 대여ID=%d | 도서명=%s | 반납예정일=%s%n", r.getId(), bookTitle, r.getDueAt());
-		});
-
-		System.out.print("↩️ 반납할 대여 ID 입력> ");
-		long rentalId = Long.parseLong(sc.nextLine().trim());
-
-		try {
-			Rental rental = rentalService.returnBook(rentalId);
-			Book book = bookService.getBook(rental.getBookId());
-			String bookTitle = (book != null) ? book.getTitle() : "(알 수 없음)";
-			System.out.println(GREEN + "✅ [성공] '" + bookTitle + "' 도서 반납 완료!" + RESET);
-		} catch (Exception e) {
-			System.out.println(RED + "❌ [오류] " + e.getMessage() + RESET);
-		}
-	}
-
-	// 대여 연장
-	private static void extendRentalFlow() {
+	// ==========================
+	// 반납(다건)
+	// ==========================
+	private static void returnBooksFlow() {
 		Member current = memberService.getCurrentUser();
-		var rentals = rentalService.getRentalsByMember(current);
-		var extendable = rentals.stream().filter(r -> r.getStatus() == RentalStatus.RENTED).toList();
+		var headers = rentalService.getRentalsByMember(current.getId());
 
-		if (extendable.isEmpty()) {
-			System.out.println(YELLOW + "⚠️ [안내] 연장할 도서가 없습니다." + RESET);
+		if (headers.isEmpty()) {
+			System.out.println(YELLOW + "⚠️ [안내] 대여 내역이 없습니다." + RESET);
 			return;
 		}
 
-		System.out.println(CYAN + "\n🔄 [연장 가능한 대여 목록]" + RESET);
-		extendable.forEach(r -> {
-			String returnedAt = (r.getReturnedAt() != null) ? r.getReturnedAt().toString() : "대여 진행중";
-			Book book = bookService.getBook(r.getBookId());
-			String bookTitle = (book != null) ? book.getTitle() : "(알 수 없음)";
-			System.out.printf("  ▶ 대여ID=%d | 도서명=%s | 상태=%s | 대여일=%s | 반납예정일=%s | 반납완료일=%s | 연장횟수=%d%n", r.getId(),
-					bookTitle, r.getStatus(), r.getRentedAt(), r.getDueAt(), returnedAt, r.getExtensionCount());
-		});
+		System.out.println(CYAN + "\n📚 [내 대여 내역]" + RESET);
+		printRentalHeadersWithDetails(headers);
 
-		System.out.print("🔄 연장할 대여 ID 입력> ");
+		System.out.print("↩️ 반납할 rentalId 입력> ");
 		long rentalId = Long.parseLong(sc.nextLine().trim());
 
+		List<RentalDetail> details = loadDetails(rentalId);
+		if (details.isEmpty()) {
+			System.out.println(YELLOW + "⚠️ [안내] 해당 거래에 상세가 없습니다." + RESET);
+			return;
+		}
+		System.out.println(CYAN + "반납 대상 선택(현재 거래의 bookId 목록)" + RESET);
+		details.forEach(d -> {
+			Book b = safeGetBook(d.getBookId());
+			System.out.printf("  ▶ bookId=%d | 제목=%s | 상태=%s | 예정일=%s | 반납일=%s | 연장=%d%n", d.getBookId(),
+					b != null ? b.getTitle() : "(알 수 없음)", d.getDetailStatus(), d.getDueAt(),
+					d.getReturnedAt() != null ? d.getReturnedAt() : "-", d.getExtensionCount());
+		});
+
+		System.out.print("↩️ 반납할 bookId들 입력(쉼표, 예: 2,5)> ");
+		List<Long> bookIds = parseIdList(sc.nextLine());
+
 		try {
-			Rental rental = rentalService.extendRental(rentalId);
-			Book book = bookService.getBook(rental.getBookId());
-			String bookTitle = (book != null) ? book.getTitle() : "(알 수 없음)";
-			System.out.println(GREEN + "✅ [성공] '" + bookTitle + "' 대여 연장 완료! 새 반납예정일=" + rental.getDueAt() + RESET);
+			int count = rentalService.returnBooks(rentalId, bookIds);
+			System.out.println(GREEN + "✅ [성공] " + count + "권 반납 완료!" + RESET);
 		} catch (Exception e) {
 			System.out.println(RED + "❌ [오류] " + e.getMessage() + RESET);
 		}
 	}
 
-	// 내 대여 목록
+	// ==========================
+	// 연장(다건)
+	// ==========================
+	private static void extendBooksFlow() {
+		Member current = memberService.getCurrentUser();
+		var headers = rentalService.getRentalsByMember(current.getId());
+
+		if (headers.isEmpty()) {
+			System.out.println(YELLOW + "⚠️ [안내] 대여 내역이 없습니다." + RESET);
+			return;
+		}
+
+		System.out.println(CYAN + "\n🔄 [연장 가능 내역 확인]" + RESET);
+		printRentalHeadersWithDetails(headers);
+
+		System.out.print("🔄 연장할 rentalId 입력> ");
+		long rentalId = Long.parseLong(sc.nextLine().trim());
+
+		List<RentalDetail> details = loadDetails(rentalId);
+		if (details.isEmpty()) {
+			System.out.println(YELLOW + "⚠️ [안내] 해당 거래에 상세가 없습니다." + RESET);
+			return;
+		}
+
+		System.out.println(CYAN + "연장 후보(상세) 목록" + RESET);
+		details.forEach(d -> {
+			Book b = safeGetBook(d.getBookId());
+			System.out.printf("  ▶ bookId=%d | 제목=%s | 상태=%s | 예정일=%s | 연장=%d%n", d.getBookId(),
+					b != null ? b.getTitle() : "(알 수 없음)", d.getDetailStatus(), d.getDueAt(), d.getExtensionCount());
+		});
+
+		System.out.print("🔄 연장할 bookId들 입력(쉼표, 예: 1,3)> ");
+		List<Long> bookIds = parseIdList(sc.nextLine());
+
+		try {
+			int updated = rentalService.extendBooks(rentalId, bookIds);
+			System.out.println(GREEN + "✅ [성공] " + updated + "권 연장 완료!" + RESET);
+		} catch (Exception e) {
+			System.out.println(RED + "❌ [오류] " + e.getMessage() + RESET);
+		}
+	}
+
+	// ==========================
+	// 내 대여 목록(헤더+상세 출력)
+	// ==========================
 	private static void myRentalsFlow() {
 		Member current = memberService.getCurrentUser();
-		var rentals = rentalService.getRentalsByMember(current);
+		var headers = rentalService.getRentalsByMember(current.getId());
 
-		if (rentals.isEmpty()) {
-			System.out.println(YELLOW + "⚠️ [안내] 대여 중인 도서가 없습니다." + RESET);
+		if (headers.isEmpty()) {
+			System.out.println(YELLOW + "⚠️ [안내] 대여 내역이 없습니다." + RESET);
 			return;
 		}
 
 		System.out.println(CYAN + "\n📝 [내 대여 목록]" + RESET);
-		rentals.forEach(r -> {
-			String returnedAt = (r.getReturnedAt() != null) ? r.getReturnedAt().toString() : "대여 진행중";
-			Book book = bookService.getBook(r.getBookId());
-			String bookTitle = (book != null) ? book.getTitle() : "(알 수 없음)";
-			System.out.printf("  ▶ 대여ID=%d | 도서명=%s | 상태=%s | 대여일=%s | 반납예정일=%s | 반납완료일=%s | 연장횟수=%d%n", r.getId(),
-					bookTitle, r.getStatus(), r.getRentedAt(), r.getDueAt(), returnedAt, r.getExtensionCount());
-		});
+		printRentalHeadersWithDetails(headers);
 	}
 
-	// 도서 목록
+	// ==========================
+	// 도서 목록/등록/검색
+	// ==========================
 	private static void listBooksFlow() {
-		List<Book> books = bookService.listBooks();
+		var books = bookService.listBooks();
 
 		if (books.isEmpty()) {
 			System.out.println(YELLOW + "⚠️ 등록된 도서가 없습니다." + RESET);
@@ -225,7 +245,6 @@ public class App {
 		}
 	}
 
-	// 도서 등록
 	private static void addBookFlow() {
 		try {
 			System.out.println(CYAN + "\n📕 [도서 등록]" + RESET);
@@ -247,7 +266,6 @@ public class App {
 		}
 	}
 
-	// 도서 검색
 	private static void searchBookFlow() {
 		System.out.println(CYAN + "\n🔍 [도서 검색]" + RESET);
 		System.out.print("검색어 입력 (제목, 저자 또는 ISBN)> ");
@@ -258,7 +276,7 @@ public class App {
 			return;
 		}
 
-		List<Book> foundBooks = bookService.searchBooks(keyword);
+		var foundBooks = bookService.searchBooks(keyword);
 
 		if (foundBooks.isEmpty()) {
 			System.out.printf(YELLOW + "⚠️ '%s'에 대한 검색 결과가 없습니다.\n" + RESET, keyword);
@@ -269,6 +287,9 @@ public class App {
 		}
 	}
 
+	// ==========================
+	// 로그인/로그아웃/가입
+	// ==========================
 	private static void showWelcome() {
 		System.out.println(CYAN + "======================================");
 		System.out.println("        📚 도서 대여 시스템         ");
@@ -287,24 +308,23 @@ public class App {
 			System.out.println("1) 📕 도서 등록");
 			System.out.println("2) 📚 도서 목록");
 			System.out.println("3) 🔍 도서 검색");
-			System.out.println("4) 📖 도서 대여");
-			System.out.println("5) ↩️ 도서 반납");
-			System.out.println("6) 🔄 대여 연장");
+			System.out.println("4) 📖 도서 대여(다건)");
+			System.out.println("5) ↩️ 도서 반납(다건)");
+			System.out.println("6) 🔄 대여 연장(다건)");
 			System.out.println("7) 📝 내 대여 목록");
 			System.out.println("0) 🚪 로그아웃");
 		} else {
 			System.out.println("1) 📚 도서 목록");
 			System.out.println("2) 🔍 도서 검색");
-			System.out.println("3) 📖 도서 대여");
-			System.out.println("4) ↩️ 도서 반납");
-			System.out.println("5) 🔄 대여 연장");
+			System.out.println("3) 📖 도서 대여(다건)");
+			System.out.println("4) ↩️ 도서 반납(다건)");
+			System.out.println("5) 🔄 대여 연장(다건)");
 			System.out.println("6) 📝 내 대여 목록");
 			System.out.println("0) 🚪 로그아웃");
 		}
 		System.out.println(CYAN + "======================================" + RESET);
 	}
 
-	// 회원가입
 	private static void signUpFlow() {
 		System.out.println(CYAN + "\n📝 [회원가입]" + RESET);
 		System.out.print("👤 이름 입력> ");
@@ -324,7 +344,6 @@ public class App {
 		}
 	}
 
-	// 로그인
 	private static void loginFlow() {
 		System.out.println(CYAN + "\n🔑 [로그인]" + RESET);
 		System.out.print("📧 이메일 입력> ");
@@ -340,45 +359,72 @@ public class App {
 		}
 	}
 
-	// 로그아웃
 	private static void logout() {
 		memberService.logout();
 		System.out.println(YELLOW + "🚪 로그아웃 되었습니다." + RESET);
 	}
 
+	// ==========================
+	// 유틸
+	// ==========================
 	private static int promptInt(String label) {
 		System.out.print(label + "> ");
 		String s = sc.nextLine().trim();
 		return Integer.parseInt(s);
 	}
 
-	private static void seed() {
+	private static List<Long> parseIdList(String input) {
+		if (input == null || input.isBlank()) {
+			return List.of();
+		}
+		String[] tokens = input.split(",");
+		List<Long> ids = new ArrayList<>();
+		for (String t : tokens) {
+			String s = t.trim();
+			if (!s.isEmpty()) {
+				ids.add(Long.parseLong(s));
+			}
+		}
+		// 중복 제거 + 입력 순서 유지
+		return new ArrayList<>(new LinkedHashSet<>(ids));
+	}
+
+	private static void printRentalHeadersWithDetails(List<Rental> headers) {
+		try (Connection conn = ConnectionManager.getConnection()) {
+			for (Rental r : headers) {
+				System.out.printf("• rentalId=%d | memberId=%d | 상태=%s | 대여시각=%s%n", r.getId(), r.getMemberId(),
+						r.getRentalStatus(), r.getRentedAt());
+				var details = rentalDetailRepository.findByRentalId(conn, r.getId());
+				if (details.isEmpty()) {
+					System.out.println("   (상세 없음)");
+				} else {
+					for (RentalDetail d : details) {
+						Book b = safeGetBook(d.getBookId());
+						System.out.printf("   - bookId=%d | 제목=%s | 상태=%s | 예정일=%s | 반납일=%s | 연장=%d%n", d.getBookId(),
+								b != null ? b.getTitle() : "(알 수 없음)", d.getDetailStatus(), d.getDueAt(),
+								d.getReturnedAt() != null ? d.getReturnedAt() : "-", d.getExtensionCount());
+					}
+				}
+			}
+		} catch (Exception e) {
+			System.out.println(RED + "❌ [오류] 대여 상세 조회 실패: " + e.getMessage() + RESET);
+		}
+	}
+
+	private static List<RentalDetail> loadDetails(long rentalId) {
+		try (Connection conn = ConnectionManager.getConnection()) {
+			return rentalDetailRepository.findByRentalId(conn, rentalId);
+		} catch (Exception e) {
+			System.out.println(RED + "❌ [오류] 상세 로드 실패: " + e.getMessage() + RESET);
+			return List.of();
+		}
+	}
+
+	private static Book safeGetBook(long bookId) {
 		try {
-			memberService.signUp("정원우", "wonwoo@test.com", "1234", Role.USER);
-			memberService.signUp("김태영", "taeyoung@test.com", "1234", Role.USER);
-			memberService.signUp("관리자", "admin@admin.com", "1234", Role.ADMIN);
-
-			Member overdueUser = memberService.signUp("연체회원", "overdue@test.com", "1234", Role.USER);
-
-			bookService.registerBook("978-89-7914-874-9", "자바의 정석", "남궁성", 5);
-			bookService.registerBook("978-89-98142-35-3", "토비의 스프링 Vol.1", "이일민", 2);
-			bookService.registerBook("978-89-98142-36-0", "토비의 스프링 Vol.2", "이일민", 2);
-
-			var overdueBook = bookService.registerBook("978-89-94492-00-1", "자바의 정석 4판", "남궁성", 1);
-			Rental overdueRental = new Rental(overdueBook.getId(), overdueUser.getId());
-			Field rentedAtField = Rental.class.getDeclaredField("rentedAt");
-			Field dueAtField = Rental.class.getDeclaredField("dueAt");
-			rentedAtField.setAccessible(true);
-			dueAtField.setAccessible(true);
-
-			LocalDate rentedAt = LocalDate.now().minusDays(20);
-			rentedAtField.set(overdueRental, rentedAt);
-			dueAtField.set(overdueRental, rentedAt.plusDays(14));
-
-			overdueBook.rent();
-			rentalRepository.save(overdueRental);
-
+			return bookService.getBook(bookId);
 		} catch (Exception ignore) {
+			return null;
 		}
 	}
 }
