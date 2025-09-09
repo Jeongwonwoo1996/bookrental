@@ -1,18 +1,18 @@
 package io.github.bookrentalteam.bookrental.repository;
 
-import java.util.List;
-import java.util.Optional;
+import java.sql.Connection;
+import java.time.LocalDate;
 
 import io.github.bookrentalteam.bookrental.domain.Member;
 
 public interface MemberRepository {
-	void save(Member member);
+	long save(Member m);
 
-	Optional<Member> findById(Long id);
+	Member findById(long id);
 
-	Optional<Member> findByEmail(String email); // 로그인 시 활용
+	Member findByEmail(String email);
 
-	List<Member> findAll();
+	// 인터페이스
+	void updateSuspendUntil(Connection conn, long memberId, LocalDate suspendUntil);
 
-	void delete(Long id);
 }

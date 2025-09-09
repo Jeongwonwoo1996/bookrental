@@ -6,18 +6,19 @@ import io.github.bookrentalteam.bookrental.domain.Member;
 import io.github.bookrentalteam.bookrental.domain.Rental;
 
 public interface RentalService {
-	/** 도서 대여 */
-	Rental rentBook(long bookId, Member member);
 
-	/** 도서 반납 */
-	Rental returnBook(long rentalId);
+	/** 여러 권 대여: 헤더 1건 생성 + 상세 N건 + 재고 N건 차감 */
+	Rental rentBooks(Member member, List<Long> bookIds);
 
-	/** 특정 회원의 대여 이력 조회 */
-	List<Rental> getRentalsByMember(Member member);
+	/** 선택 도서 다건 반납 (상세 상태 RETURNED, 재고 복구, 헤더 상태 갱신) */
+	int returnBooks(long rentalId, List<Long> bookIds);
 
-	/** 연체 여부 검사 및 제재 처리 */
-	void checkOverdueAndApplySuspension(Member member);
+	/** 선택 도서 다건 연장(7일) — 규약: 상세가 RENTED이고, 연체 아님, 연장 1회 미만 */
+	int extendBooks(long rentalId, List<Long> bookIds);
 
-	/** 대여 연장 */
-	Rental extendRental(long rentalId);
+	/** 특정 회원의 대여 헤더 목록 */
+	List<Rental> getRentalsByMember(long memberId);
+
+	/** 회원의 연체 상태 점검 및 제재 적용 */
+	void checkOverdueAndApplySuspension(long memberId);
 }
