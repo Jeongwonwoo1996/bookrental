@@ -57,7 +57,6 @@ public class App {
 				if (memberService.getCurrentUser() == null) { // 로그인 전
 					showWelcome();
 					int sel = promptInt("👉 메뉴 선택");
-
 					switch (sel) {
 					case 1 -> signUpFlow();
 					case 2 -> loginFlow();
@@ -67,11 +66,24 @@ public class App {
 					}
 					default -> System.out.println(RED + "❌ [오류] 올바른 메뉴 번호를 입력해주세요." + RESET);
 					}
-				} else {
+				} else { // 로그인 후
 					showMainMenu();
 					int sel = promptInt("👉 메뉴 선택");
 
-					if (memberService.getCurrentUser().getRole() == Role.ADMIN) { // 관리자
+					Member cu = memberService.getCurrentUser();
+					boolean isSuspended = cu.getSuspendUntil() != null
+							&& !cu.getSuspendUntil().isBefore(LocalDate.now());
+					boolean hasOverdue = rentalService.existsOverdueByMember(cu.getId());
+
+					if (cu.getRole() == Role.ADMIN) { // 관리자
+						// 선택 즉시 차단 (ADMIN: 대여=4, 연장=6)
+						if ((sel == 4 || sel == 6) && (isSuspended || hasOverdue)) {
+							System.out.println(YELLOW + "⚠️ [안내] "
+									+ (isSuspended ? ("대여 정지 상태입니다. " + cu.getSuspendUntil() + "까지 이용 불가")
+											: "연체 중인 도서가 있어 대여/연장이 제한됩니다.")
+									+ RESET);
+							continue;
+						}
 						switch (sel) {
 						case 1 -> addBookFlow();
 						case 2 -> listBooksFlow();
@@ -84,6 +96,14 @@ public class App {
 						default -> System.out.println(RED + "❌ [오류] 올바른 메뉴 번호를 입력해주세요." + RESET);
 						}
 					} else { // 일반 사용자
+						// 선택 즉시 차단 (USER: 대여=3, 연장=5)
+						if ((sel == 3 || sel == 5) && (isSuspended || hasOverdue)) {
+							System.out.println(YELLOW + "⚠️ [안내] "
+									+ (isSuspended ? ("대여 정지 상태입니다. " + cu.getSuspendUntil() + "까지 이용 불가")
+											: "연체 중인 도서가 있어 대여/연장이 제한됩니다.")
+									+ RESET);
+							continue;
+						}
 						switch (sel) {
 						case 1 -> listBooksFlow();
 						case 2 -> searchBookFlow();
@@ -109,7 +129,15 @@ public class App {
 	// ==========================
 	private static void rentBooksFlow() {
 		Member current = memberService.getCurrentUser();
-		// ✅ 연체 보유 시: 메뉴 진입 즉시 차단 (안내 후 종료)
+
+		// ✅ 메뉴 진입 즉시 차단: 대여 정지
+		boolean isSuspended = current.getSuspendUntil() != null && !current.getSuspendUntil().isBefore(LocalDate.now());
+		if (isSuspended) {
+			System.out.println(YELLOW + "⚠️ [안내] 대여 정지 상태입니다. " + current.getSuspendUntil() + "까지 대여할 수 없습니다." + RESET);
+			return;
+		}
+
+		// ✅ 메뉴 진입 즉시 차단: 연체 보유
 		if (rentalService.existsOverdueByMember(current.getId())) {
 			System.out.println(YELLOW + "⚠️ [안내] 연체 중인 도서가 있어 대여할 수 없습니다. 먼저 연체 도서를 반납해주세요." + RESET);
 			return;
@@ -174,6 +202,7 @@ public class App {
 		try {
 			int count = rentalService.returnBooks(rentalId, bookIds);
 			System.out.println(GREEN + "✅ [성공] " + count + "권 반납 완료!" + RESET);
+			// (선택) 여기서 suspend_until 안내를 즉시 보여주려면 MemberService에 reload 기능을 추가해 사용하세요.
 		} catch (Exception e) {
 			System.out.println(RED + "❌ [오류] " + e.getMessage() + RESET);
 		}
@@ -184,13 +213,21 @@ public class App {
 	// ==========================
 	private static void extendBooksFlow() {
 		Member current = memberService.getCurrentUser();
-		// ✅ 연체 보유 시: 메뉴 진입 즉시 차단 (안내 후 종료)
+
+		// ✅ 메뉴 진입 즉시 차단: 대여 정지
+		boolean isSuspended = current.getSuspendUntil() != null && !current.getSuspendUntil().isBefore(LocalDate.now());
+		if (isSuspended) {
+			System.out.println(YELLOW + "⚠️ [안내] 대여 정지 상태입니다. " + current.getSuspendUntil() + "까지 연장할 수 없습니다." + RESET);
+			return;
+		}
+
+		// ✅ 메뉴 진입 즉시 차단: 연체 보유
 		if (rentalService.existsOverdueByMember(current.getId())) {
 			System.out.println(YELLOW + "⚠️ [안내] 연체 중인 도서가 있어 연장할 수 없습니다. 먼저 연체 도서를 반납해주세요." + RESET);
 			return;
 		}
-		var headers = rentalService.getRentalsByMember(current.getId());
 
+		var headers = rentalService.getRentalsByMember(current.getId());
 		if (headers.isEmpty()) {
 			System.out.println(YELLOW + "⚠️ [안내] 대여 내역이 없습니다." + RESET);
 			return;
@@ -255,6 +292,7 @@ public class App {
 			books.forEach(b -> System.out.printf("  ▶ ID=%d | 제목=%s | 저자=%s | 재고=%d/%d%n", b.getId(), b.getTitle(),
 					b.getAuthor(), b.getAvailableCopies(), b.getTotalCopies()));
 		}
+		;
 	}
 
 	private static void addBookFlow() {
@@ -312,34 +350,38 @@ public class App {
 	private static void showMainMenu() {
 		Member currentUser = memberService.getCurrentUser();
 
-		// (선택) 연체 안내 배너
-		if (rentalService.existsOverdueByMember(currentUser.getId())) {
-			System.out.println(YELLOW + "[안내] 연체 중인 도서 보유: 대여/연장 메뉴 이용이 제한됩니다." + RESET);
-		}
-
-		System.out.println(CYAN + "\n======================================");
+		System.out.println(CYAN + "======================================");
 		System.out.printf(" 👤 로그인: %s  |  권한: %s%n", currentUser.getName(), currentUser.getRole());
 		System.out.println("======================================" + RESET);
+
+		// ✅ 상태 배너
+		boolean isSuspended = currentUser.getSuspendUntil() != null
+				&& !currentUser.getSuspendUntil().isBefore(LocalDate.now());
+		boolean hasOverdue = rentalService.existsOverdueByMember(currentUser.getId());
+		if (isSuspended) {
+			System.out.println(YELLOW + "[안내] 대여 정지 상태: " + currentUser.getSuspendUntil() + " 까지 대여/연장 불가" + RESET);
+		} else if (hasOverdue) {
+			System.out.println(YELLOW + "[안내] 연체 중인 도서 보유: 대여/연장 메뉴 이용이 제한됩니다." + RESET);
+		}
 
 		if (currentUser.getRole() == Role.ADMIN) {
 			System.out.println("1) 📕 도서 등록");
 			System.out.println("2) 📚 도서 목록");
 			System.out.println("3) 🔍 도서 검색");
-			System.out.println("4) 📖 도서 대여(다건)");
+			System.out.println("4) 📖 도서 대여(다건)" + (isSuspended || hasOverdue ? " 🔒(제한)" : ""));
 			System.out.println("5) ↩️ 도서 반납(다건)");
-			System.out.println("6) 🔄 대여 연장(다건)");
+			System.out.println("6) 🔄 대여 연장(다건)" + (isSuspended || hasOverdue ? " 🔒(제한)" : ""));
 			System.out.println("7) 📝 내 대여 목록");
 			System.out.println("0) 🚪 로그아웃");
 		} else {
 			System.out.println("1) 📚 도서 목록");
 			System.out.println("2) 🔍 도서 검색");
-			System.out.println("3) 📖 도서 대여(다건)");
+			System.out.println("3) 📖 도서 대여(다건)" + (isSuspended || hasOverdue ? " 🔒(제한)" : ""));
 			System.out.println("4) ↩️ 도서 반납(다건)");
-			System.out.println("5) 🔄 대여 연장(다건)");
+			System.out.println("5) 🔄 대여 연장(다건)" + (isSuspended || hasOverdue ? " 🔒(제한)" : ""));
 			System.out.println("6) 📝 내 대여 목록");
 			System.out.println("0) 🚪 로그아웃");
 		}
-		System.out.println(CYAN + "======================================" + RESET);
 	}
 
 	private static void signUpFlow() {
