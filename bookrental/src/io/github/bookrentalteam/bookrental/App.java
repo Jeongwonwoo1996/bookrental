@@ -9,6 +9,7 @@ import java.util.Scanner;
 
 import io.github.bookrentalteam.bookrental.config.ConnectionManager;
 import io.github.bookrentalteam.bookrental.domain.Book;
+import io.github.bookrentalteam.bookrental.domain.DetailStatus;
 import io.github.bookrentalteam.bookrental.domain.Member;
 import io.github.bookrentalteam.bookrental.domain.Rental;
 import io.github.bookrentalteam.bookrental.domain.RentalDetail;
@@ -175,8 +176,18 @@ public class App {
 	private static void returnBooksFlow() {
 		Member current = memberService.getCurrentUser();
 		var headers = rentalService.getRentalsByMember(current.getId());
+
 		if (headers.isEmpty()) {
 			System.out.println(YELLOW + "⚠️ [안내] 대여 내역이 없습니다." + RESET);
+			return;
+		}
+
+		// ✅ 반납 가능한 도서(RENTED/OVERDUE)가 전혀 없으면 메뉴 차단
+		boolean hasReturnable = headers.stream().flatMap(h -> loadDetails(h.getId()).stream()).anyMatch(
+				d -> d.getDetailStatus() == DetailStatus.RENTED || d.getDetailStatus() == DetailStatus.OVERDUE);
+
+		if (!hasReturnable) {
+			System.out.println(YELLOW + "⚠️ [안내] 현재 반납할 수 있는 도서가 없습니다." + RESET);
 			return;
 		}
 
@@ -203,7 +214,8 @@ public class App {
 	// extendBooksFlow() 교체
 	private static void extendBooksFlow() {
 		Member current = memberService.getCurrentUser();
-		// ✅ 진입 가드
+
+		// ✅ 진입 가드: 정지/연체
 		boolean isSuspended = current.getSuspendUntil() != null && !current.getSuspendUntil().isBefore(LocalDate.now());
 		if (isSuspended) {
 			System.out.println(YELLOW + "⚠️ [안내] 대여 정지 상태입니다. " + current.getSuspendUntil() + "까지 연장할 수 없습니다." + RESET);
@@ -217,6 +229,16 @@ public class App {
 		var headers = rentalService.getRentalsByMember(current.getId());
 		if (headers.isEmpty()) {
 			System.out.println(YELLOW + "⚠️ [안내] 대여 내역이 없습니다." + RESET);
+			return;
+		}
+
+		// ✅ 연장 가능한 도서(RENTE D & due_at ≥ 오늘 & extension_count < 1)가 없으면 메뉴 차단
+		boolean hasExtendable = headers.stream().flatMap(h -> loadDetails(h.getId()).stream())
+				.anyMatch(d -> d.getDetailStatus() == DetailStatus.RENTED && !d.getDueAt().isBefore(LocalDate.now())
+						&& d.getExtensionCount() < 1);
+
+		if (!hasExtendable) {
+			System.out.println(YELLOW + "⚠️ [안내] 현재 연장할 수 있는 도서가 없습니다." + RESET);
 			return;
 		}
 
