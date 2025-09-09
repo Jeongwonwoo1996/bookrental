@@ -28,4 +28,7 @@ public interface RentalDetailRepository {
 	 * 반환합니다.
 	 */
 	List<Long> findActiveBookIdsByMemberAndBookIds(Connection conn, long memberId, List<Long> bookIds);
+
+	/** 회원에게 연체 중인 상세가 1건이라도 있는지 여부 */
+	boolean existsOverdueByMemberId(Connection conn, long memberId);
 }

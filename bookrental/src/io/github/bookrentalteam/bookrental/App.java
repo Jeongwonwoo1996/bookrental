@@ -109,6 +109,12 @@ public class App {
 	// ==========================
 	private static void rentBooksFlow() {
 		Member current = memberService.getCurrentUser();
+		// ✅ 연체 보유 시: 메뉴 진입 즉시 차단 (안내 후 종료)
+		if (rentalService.existsOverdueByMember(current.getId())) {
+			System.out.println(YELLOW + "⚠️ [안내] 연체 중인 도서가 있어 대여할 수 없습니다. 먼저 연체 도서를 반납해주세요." + RESET);
+			return;
+		}
+
 		var availableBooks = bookService.listBooks().stream().filter(b -> b.getAvailableCopies() > 0).toList();
 
 		if (availableBooks.isEmpty()) {
@@ -178,6 +184,11 @@ public class App {
 	// ==========================
 	private static void extendBooksFlow() {
 		Member current = memberService.getCurrentUser();
+		// ✅ 연체 보유 시: 메뉴 진입 즉시 차단 (안내 후 종료)
+		if (rentalService.existsOverdueByMember(current.getId())) {
+			System.out.println(YELLOW + "⚠️ [안내] 연체 중인 도서가 있어 연장할 수 없습니다. 먼저 연체 도서를 반납해주세요." + RESET);
+			return;
+		}
 		var headers = rentalService.getRentalsByMember(current.getId());
 
 		if (headers.isEmpty()) {
@@ -300,6 +311,11 @@ public class App {
 
 	private static void showMainMenu() {
 		Member currentUser = memberService.getCurrentUser();
+
+		// (선택) 연체 안내 배너
+		if (rentalService.existsOverdueByMember(currentUser.getId())) {
+			System.out.println(YELLOW + "[안내] 연체 중인 도서 보유: 대여/연장 메뉴 이용이 제한됩니다." + RESET);
+		}
 
 		System.out.println(CYAN + "\n======================================");
 		System.out.printf(" 👤 로그인: %s  |  권한: %s%n", currentUser.getName(), currentUser.getRole());

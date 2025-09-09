@@ -66,30 +66,25 @@ public class RentalServiceImpl implements RentalService {
 					throw new BusinessException("이미 대여 중인 도서가 포함되어 대여할 수 없습니다: " + activeDup);
 				}
 
-				// 1) 회원의 연체/대여권수 제한 체크
-				// - OPEN 헤더들 읽고, 상세 조회하여 연체 여부/활성 권수 계산
+				// 1) 연체 보유 시 대여 차단(빠른 존재 조회)
+				if (detailRepo.existsOverdueByMemberId(conn, member.getId())) {
+					throw new BusinessException("연체 중인 도서가 있어 대여할 수 없습니다.");
+				}
+
+				// 활성 권수 계산 (OPEN 헤더 기준)
 				List<Rental> headers = rentalRepo.findByMemberId(conn, member.getId()).stream()
 						.filter(r -> r.getRentalStatus() == RentalStatus.OPEN).collect(Collectors.toList());
-
-				boolean hasOverdue = false;
 				int activeCount = 0;
 				for (Rental r : headers) {
 					var details = detailRepo.findByRentalId(conn, r.getId());
 					for (RentalDetail d : details) {
-						if (d.getDetailStatus() == DetailStatus.RENTED && d.getDueAt().isBefore(LocalDate.now())) {
-							hasOverdue = true; // 논리상 연체
-						}
 						if (d.getDetailStatus() == DetailStatus.RENTED || d.getDetailStatus() == DetailStatus.OVERDUE
 								|| d.getDetailStatus() == DetailStatus.LOST) {
 							activeCount++;
 						}
 					}
 				}
-				if (hasOverdue) {
-					throw new BusinessException("연체 중인 도서가 있어 대여할 수 없습니다.");
-				}
 				if (member.getRole() == Role.USER) {
-					// 일반 회원 최대 7권(규약)
 					if (activeCount + bookIds.size() > 7) {
 						throw new BusinessException("일반 회원은 동시에 최대 7권까지 대여할 수 있습니다. (현재: " + activeCount + "권)");
 					}
@@ -235,22 +230,8 @@ public class RentalServiceImpl implements RentalService {
 					throw new BusinessException("대여 기록을 찾을 수 없습니다: " + rentalId);
 				}
 
-				// 회원 연체 보유 시 연장 불가(규약)
-				boolean hasOverdue = false;
-				var memberHeaders = rentalRepo.findByMemberId(conn, header.getMemberId()).stream()
-						.filter(r -> r.getRentalStatus() == RentalStatus.OPEN).collect(Collectors.toList());
-				for (Rental r : memberHeaders) {
-					for (RentalDetail d : detailRepo.findByRentalId(conn, r.getId())) {
-						if (d.getDetailStatus() == DetailStatus.RENTED && d.getDueAt().isBefore(LocalDate.now())) {
-							hasOverdue = true;
-							break;
-						}
-					}
-					if (hasOverdue) {
-						break;
-					}
-				}
-				if (hasOverdue) {
+				// 회원 연체 보유 시 연장 불가(빠른 조회)
+				if (detailRepo.existsOverdueByMemberId(conn, header.getMemberId())) {
 					throw new BusinessException("연체된 도서가 있어 연장할 수 없습니다.");
 				}
 
@@ -332,6 +313,15 @@ public class RentalServiceImpl implements RentalService {
 			} finally {
 				conn.setAutoCommit(true);
 			}
+		} catch (Exception e) {
+			throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException(e);
+		}
+	}
+
+	@Override
+	public boolean existsOverdueByMember(long memberId) {
+		try (Connection conn = ConnectionManager.getConnection()) {
+			return detailRepo.existsOverdueByMemberId(conn, memberId);
 		} catch (Exception e) {
 			throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException(e);
 		}

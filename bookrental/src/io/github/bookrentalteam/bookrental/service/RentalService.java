@@ -21,4 +21,7 @@ public interface RentalService {
 
 	/** 회원의 연체 상태 점검 및 제재 적용 */
 	void checkOverdueAndApplySuspension(long memberId);
+
+	/** 연체 보유 여부 단순 조회(메뉴 진입 차단용) */
+	boolean existsOverdueByMember(long memberId);
 }

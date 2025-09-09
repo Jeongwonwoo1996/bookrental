@@ -230,4 +230,26 @@ public class JdbcRentalDetailRepository implements RentalDetailRepository {
 			throw new RuntimeException("JdbcRentalDetailRepository.findActiveBookIdsByMemberAndBookIds 실패", e);
 		}
 	}
+
+	@Override
+	public boolean existsOverdueByMemberId(Connection conn, long memberId) {
+		// 정책: detail_status가 RENTED 또는 OVERDUE 이고, due_at < 오늘 → 연체로 간주
+		final String sql = """
+					SELECT 1
+					  FROM rental_detail rd
+					  JOIN rental r ON r.rental_id = rd.rental_id
+					 WHERE r.member_id = ?
+					   AND rd.detail_status IN ('RENTED','OVERDUE')
+					   AND rd.due_at < CURDATE()
+					 LIMIT 1
+				""";
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setLong(1, memberId);
+			try (ResultSet rs = ps.executeQuery()) {
+				return rs.next();
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException("JdbcRentalDetailRepository.existsOverdueByMemberId 실패", e);
+		}
+	}
 }
