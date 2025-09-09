@@ -178,7 +178,7 @@ public class RentalServiceImpl implements RentalService {
 				}
 				if (targets.isEmpty()) {
 					conn.rollback();
-					return 0;
+					throw new BusinessException("선택한 항목 중 반납 가능한 도서가 없습니다. (이미 반납했거나 대상이 아닙니다)");
 				}
 
 				// 상세 상태 RETURNED + returned_at=오늘
@@ -271,7 +271,7 @@ public class RentalServiceImpl implements RentalService {
 				}
 				if (eligible.isEmpty()) {
 					conn.rollback();
-					return 0;
+					throw new BusinessException("선택한 항목 중 연장 가능한 도서가 없습니다. (연체/상태/연장 횟수 조건 불만족)");
 				}
 
 				int updated = detailRepo.extendBatch7d(conn, rentalId, eligible);
@@ -377,7 +377,7 @@ public class RentalServiceImpl implements RentalService {
 				}
 			}
 			if (byRentalId.isEmpty()) {
-				return 0; // 반납할 대상 없음
+				throw new BusinessException("입력한 bookId 중 연장 가능한 도서가 없습니다.");
 			}
 
 			// 기존 API 재사용: rentalId 그룹별로 반납 실행(트랜잭션은 내부에서 처리)

@@ -161,6 +161,8 @@ public class App {
 		try {
 			Rental rentalHeader = rentalService.rentBooks(current, bookIds);
 			System.out.println(GREEN + "✅ [성공] 대여 완료! (rentalId=" + rentalHeader.getId() + ")" + RESET);
+		} catch (io.github.bookrentalteam.bookrental.common.exception.BusinessException e) {
+			System.out.println(YELLOW + "⚠️ [안내] " + e.getMessage() + RESET);
 		} catch (Exception e) {
 			System.out.println(RED + "❌ [오류] " + e.getMessage() + RESET);
 		}
@@ -187,11 +189,9 @@ public class App {
 
 		try {
 			int count = rentalService.returnBooksByBookIds(current.getId(), bookIds);
-			if (count == 0) {
-				System.out.println(YELLOW + "ℹ️ 반납할 도서가 없거나 조건에 맞지 않습니다." + RESET);
-			} else {
-				System.out.println(GREEN + "✅ [성공] " + count + "권 반납 완료!" + RESET);
-			}
+			System.out.println(GREEN + "✅ [성공] " + count + "권 반납 완료!" + RESET);
+		} catch (io.github.bookrentalteam.bookrental.common.exception.BusinessException e) {
+			System.out.println(YELLOW + "⚠️ [안내] " + e.getMessage() + RESET);
 		} catch (Exception e) {
 			System.out.println(RED + "❌ [오류] " + e.getMessage() + RESET);
 		}
@@ -229,11 +229,9 @@ public class App {
 
 		try {
 			int updated = rentalService.extendBooksByBookIds(current.getId(), bookIds);
-			if (updated == 0) {
-				System.out.println(YELLOW + "ℹ️ 연장 가능한 대상이 없거나 조건을 만족하지 않습니다." + RESET);
-			} else {
-				System.out.println(GREEN + "✅ [성공] " + updated + "권 연장 완료!" + RESET);
-			}
+			System.out.println(GREEN + "✅ [성공] " + updated + "권 연장 완료!" + RESET);
+		} catch (io.github.bookrentalteam.bookrental.common.exception.BusinessException e) {
+			System.out.println(YELLOW + "⚠️ [안내] " + e.getMessage() + RESET);
 		} catch (Exception e) {
 			System.out.println(RED + "❌ [오류] " + e.getMessage() + RESET);
 		}
