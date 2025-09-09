@@ -127,6 +127,7 @@ public class App {
 	// ==========================
 	// 대여(다건)
 	// ==========================
+	// returnBooksFlow() 교체
 	private static void rentBooksFlow() {
 		Member current = memberService.getCurrentUser();
 
@@ -168,10 +169,10 @@ public class App {
 	// ==========================
 	// 반납(다건)
 	// ==========================
+	// returnBooksFlow() 교체
 	private static void returnBooksFlow() {
 		Member current = memberService.getCurrentUser();
 		var headers = rentalService.getRentalsByMember(current.getId());
-
 		if (headers.isEmpty()) {
 			System.out.println(YELLOW + "⚠️ [안내] 대여 내역이 없습니다." + RESET);
 			return;
@@ -180,29 +181,17 @@ public class App {
 		System.out.println(CYAN + "\n📚 [내 대여 내역]" + RESET);
 		printRentalHeadersWithDetails(headers);
 
-		System.out.print("↩️ 반납할 rentalId 입력> ");
-		long rentalId = Long.parseLong(sc.nextLine().trim());
-
-		List<RentalDetail> details = loadDetails(rentalId);
-		if (details.isEmpty()) {
-			System.out.println(YELLOW + "⚠️ [안내] 해당 거래에 상세가 없습니다." + RESET);
-			return;
-		}
-		System.out.println(CYAN + "반납 대상 선택(현재 거래의 bookId 목록)" + RESET);
-		details.forEach(d -> {
-			Book b = safeGetBook(d.getBookId());
-			System.out.printf("  ▶ bookId=%d | 제목=%s | 상태=%s | 예정일=%s | 반납일=%s | 연장=%d%n", d.getBookId(),
-					b != null ? b.getTitle() : "(알 수 없음)", d.getDetailStatus(), d.getDueAt(),
-					d.getReturnedAt() != null ? d.getReturnedAt() : "-", d.getExtensionCount());
-		});
-
+		// ✅ bookId만 입력
 		System.out.print("↩️ 반납할 bookId들 입력(쉼표, 예: 2,5)> ");
 		List<Long> bookIds = parseIdList(sc.nextLine());
 
 		try {
-			int count = rentalService.returnBooks(rentalId, bookIds);
-			System.out.println(GREEN + "✅ [성공] " + count + "권 반납 완료!" + RESET);
-			// (선택) 여기서 suspend_until 안내를 즉시 보여주려면 MemberService에 reload 기능을 추가해 사용하세요.
+			int count = rentalService.returnBooksByBookIds(current.getId(), bookIds);
+			if (count == 0) {
+				System.out.println(YELLOW + "ℹ️ 반납할 도서가 없거나 조건에 맞지 않습니다." + RESET);
+			} else {
+				System.out.println(GREEN + "✅ [성공] " + count + "권 반납 완료!" + RESET);
+			}
 		} catch (Exception e) {
 			System.out.println(RED + "❌ [오류] " + e.getMessage() + RESET);
 		}
@@ -211,17 +200,15 @@ public class App {
 	// ==========================
 	// 연장(다건)
 	// ==========================
+	// extendBooksFlow() 교체
 	private static void extendBooksFlow() {
 		Member current = memberService.getCurrentUser();
-
-		// ✅ 메뉴 진입 즉시 차단: 대여 정지
+		// ✅ 진입 가드
 		boolean isSuspended = current.getSuspendUntil() != null && !current.getSuspendUntil().isBefore(LocalDate.now());
 		if (isSuspended) {
 			System.out.println(YELLOW + "⚠️ [안내] 대여 정지 상태입니다. " + current.getSuspendUntil() + "까지 연장할 수 없습니다." + RESET);
 			return;
 		}
-
-		// ✅ 메뉴 진입 즉시 차단: 연체 보유
 		if (rentalService.existsOverdueByMember(current.getId())) {
 			System.out.println(YELLOW + "⚠️ [안내] 연체 중인 도서가 있어 연장할 수 없습니다. 먼저 연체 도서를 반납해주세요." + RESET);
 			return;
@@ -236,28 +223,17 @@ public class App {
 		System.out.println(CYAN + "\n🔄 [연장 가능 내역 확인]" + RESET);
 		printRentalHeadersWithDetails(headers);
 
-		System.out.print("🔄 연장할 rentalId 입력> ");
-		long rentalId = Long.parseLong(sc.nextLine().trim());
-
-		List<RentalDetail> details = loadDetails(rentalId);
-		if (details.isEmpty()) {
-			System.out.println(YELLOW + "⚠️ [안내] 해당 거래에 상세가 없습니다." + RESET);
-			return;
-		}
-
-		System.out.println(CYAN + "연장 후보(상세) 목록" + RESET);
-		details.forEach(d -> {
-			Book b = safeGetBook(d.getBookId());
-			System.out.printf("  ▶ bookId=%d | 제목=%s | 상태=%s | 예정일=%s | 연장=%d%n", d.getBookId(),
-					b != null ? b.getTitle() : "(알 수 없음)", d.getDetailStatus(), d.getDueAt(), d.getExtensionCount());
-		});
-
+		// ✅ bookId만 입력
 		System.out.print("🔄 연장할 bookId들 입력(쉼표, 예: 1,3)> ");
 		List<Long> bookIds = parseIdList(sc.nextLine());
 
 		try {
-			int updated = rentalService.extendBooks(rentalId, bookIds);
-			System.out.println(GREEN + "✅ [성공] " + updated + "권 연장 완료!" + RESET);
+			int updated = rentalService.extendBooksByBookIds(current.getId(), bookIds);
+			if (updated == 0) {
+				System.out.println(YELLOW + "ℹ️ 연장 가능한 대상이 없거나 조건을 만족하지 않습니다." + RESET);
+			} else {
+				System.out.println(GREEN + "✅ [성공] " + updated + "권 연장 완료!" + RESET);
+			}
 		} catch (Exception e) {
 			System.out.println(RED + "❌ [오류] " + e.getMessage() + RESET);
 		}

@@ -24,4 +24,9 @@ public interface RentalService {
 
 	/** 연체 보유 여부 단순 조회(메뉴 진입 차단용) */
 	boolean existsOverdueByMember(long memberId);
+
+	// ✅ 추가: 회원 기준 bookId만 받아 반납/연장 처리
+	int returnBooksByBookIds(long memberId, List<Long> rawBookIds);
+
+	int extendBooksByBookIds(long memberId, List<Long> rawBookIds);
 }

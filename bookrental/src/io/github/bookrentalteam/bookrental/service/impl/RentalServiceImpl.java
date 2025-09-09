@@ -344,4 +344,109 @@ public class RentalServiceImpl implements RentalService {
 			throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException(e);
 		}
 	}
+
+	@Override
+	public int returnBooksByBookIds(long memberId, List<Long> rawBookIds) {
+		if (memberId <= 0) {
+			throw new ValidationException("회원 정보가 유효하지 않습니다.");
+		}
+		if (rawBookIds == null || rawBookIds.isEmpty()) {
+			throw new ValidationException("반납할 도서를 선택해 주세요.");
+		}
+		// 중복 제거 + 입력 순서 유지
+		List<Long> bookIds = new ArrayList<>(new LinkedHashSet<>(rawBookIds));
+
+		try (Connection conn = ConnectionManager.getConnection()) {
+			// 회원의 OPEN 헤더들을 조회하고, 각 헤더의 상세를 모아 bookId -> RentalDetail 매핑
+			List<Rental> openHeaders = rentalRepo.findByMemberId(conn, memberId).stream()
+					.filter(r -> r.getRentalStatus() == RentalStatus.OPEN).collect(Collectors.toList());
+
+			// bookId -> RentalDetail(해당 헤더의 상세) 매핑 (RENTED/OVERDUE만 관심)
+			Map<Long, RentalDetail> activeByBookId = openHeaders.stream()
+					.flatMap(r -> detailRepo.findByRentalId(conn, r.getId()).stream())
+					.filter(d -> d.getDetailStatus() == DetailStatus.RENTED
+							|| d.getDetailStatus() == DetailStatus.OVERDUE)
+					.collect(Collectors.toMap(RentalDetail::getBookId, d -> d, (a, b) -> a));
+
+			// rentalId별로 반납 대상 bookId 분류
+			Map<Long, List<Long>> byRentalId = new java.util.LinkedHashMap<>();
+			for (Long bookId : bookIds) {
+				RentalDetail d = activeByBookId.get(bookId);
+				if (d != null) {
+					byRentalId.computeIfAbsent(d.getRentalId(), k -> new ArrayList<>()).add(bookId);
+				}
+			}
+			if (byRentalId.isEmpty()) {
+				return 0; // 반납할 대상 없음
+			}
+
+			// 기존 API 재사용: rentalId 그룹별로 반납 실행(트랜잭션은 내부에서 처리)
+			int total = 0;
+			for (Map.Entry<Long, List<Long>> e : byRentalId.entrySet()) {
+				total += returnBooks(e.getKey(), e.getValue());
+			}
+			return total;
+		} catch (Exception e) {
+			throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException(e);
+		}
+	}
+
+	@Override
+	public int extendBooksByBookIds(long memberId, List<Long> rawBookIds) {
+		if (memberId <= 0) {
+			throw new ValidationException("회원 정보가 유효하지 않습니다.");
+		}
+		if (rawBookIds == null || rawBookIds.isEmpty()) {
+			throw new ValidationException("연장할 도서를 선택해 주세요.");
+		}
+		// 중복 제거 + 입력 순서 유지
+		List<Long> bookIds = new ArrayList<>(new LinkedHashSet<>(rawBookIds));
+
+		try (Connection conn = ConnectionManager.getConnection()) {
+			// 정지/연체 가드 (서비스 규약 준수)
+			var freshMember = memberRepo.findById(memberId);
+			if (freshMember == null) {
+				throw new ValidationException("회원 정보가 유효하지 않습니다.");
+			}
+			if (freshMember.isSuspended()) {
+				throw new BusinessException("현재 대여 정지 상태입니다. 해제일: " + freshMember.getSuspendUntil());
+			}
+			if (detailRepo.existsOverdueByMemberId(conn, memberId)) {
+				throw new BusinessException("연체된 도서가 있어 연장할 수 없습니다.");
+			}
+
+			List<Rental> openHeaders = rentalRepo.findByMemberId(conn, memberId).stream()
+					.filter(r -> r.getRentalStatus() == RentalStatus.OPEN).collect(Collectors.toList());
+
+			LocalDate today = LocalDate.now();
+
+			// bookId -> RentalDetail(연장 가능한 상세만) 매핑
+			Map<Long, RentalDetail> eligibleByBookId = openHeaders.stream()
+					.flatMap(r -> detailRepo.findByRentalId(conn, r.getId()).stream())
+					.filter(d -> d.getDetailStatus() == DetailStatus.RENTED && !d.getDueAt().isBefore(today)
+							&& d.getExtensionCount() < 1)
+					.collect(Collectors.toMap(RentalDetail::getBookId, d -> d, (a, b) -> a));
+
+			// rentalId별로 연장 대상 분류
+			Map<Long, List<Long>> byRentalId = new java.util.LinkedHashMap<>();
+			for (Long bookId : bookIds) {
+				RentalDetail d = eligibleByBookId.get(bookId);
+				if (d != null) {
+					byRentalId.computeIfAbsent(d.getRentalId(), k -> new ArrayList<>()).add(bookId);
+				}
+			}
+			if (byRentalId.isEmpty()) {
+				return 0; // 연장 대상 없음
+			}
+
+			// 기존 API 재사용: rentalId 그룹별로 연장 실행
+			int total = 0;
+			for (Map.Entry<Long, List<Long>> e : byRentalId.entrySet()) {
+				total += extendBooks(e.getKey(), e.getValue());
+			}
+			return total;
+		} catch (Exception e) {
+			throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException(e);
+		}
+	}
 }
