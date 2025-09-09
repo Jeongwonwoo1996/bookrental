@@ -196,4 +196,38 @@ public class JdbcRentalDetailRepository implements RentalDetailRepository {
 		}
 		return sum;
 	}
+
+	@Override
+	public List<Long> findActiveBookIdsByMemberAndBookIds(Connection conn, long memberId, List<Long> bookIds) {
+		if (bookIds == null || bookIds.isEmpty()) {
+			return List.of();
+		}
+
+		String placeholders = String.join(",", java.util.Collections.nCopies(bookIds.size(), "?"));
+		final String sql = """
+				SELECT DISTINCT rd.book_id
+				  FROM rental_detail rd
+				  JOIN rental r ON r.rental_id = rd.rental_id
+				 WHERE r.member_id = ?
+				   AND rd.book_id IN (""" + placeholders + """
+				   )
+				   AND rd.detail_status IN ('RENTED','OVERDUE','LOST')
+				""";
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			int idx = 1;
+			ps.setLong(idx++, memberId);
+			for (Long id : bookIds) {
+				ps.setLong(idx++, id);
+			}
+			try (ResultSet rs = ps.executeQuery()) {
+				List<Long> result = new ArrayList<>();
+				while (rs.next()) {
+					result.add(rs.getLong(1));
+				}
+				return result;
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException("JdbcRentalDetailRepository.findActiveBookIdsByMemberAndBookIds 실패", e);
+		}
+	}
 }

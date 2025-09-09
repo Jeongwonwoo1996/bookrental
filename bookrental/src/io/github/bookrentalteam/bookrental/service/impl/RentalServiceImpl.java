@@ -60,6 +60,12 @@ public class RentalServiceImpl implements RentalService {
 		try (Connection conn = ConnectionManager.getConnection()) {
 			conn.setAutoCommit(false);
 			try {
+				// 0) 동일 도서 중복 대여 사전 차단 (이미 보유 중인 도서)
+				List<Long> activeDup = detailRepo.findActiveBookIdsByMemberAndBookIds(conn, member.getId(), bookIds);
+				if (!activeDup.isEmpty()) {
+					throw new BusinessException("이미 대여 중인 도서가 포함되어 대여할 수 없습니다: " + activeDup);
+				}
+
 				// 1) 회원의 연체/대여권수 제한 체크
 				// - OPEN 헤더들 읽고, 상세 조회하여 연체 여부/활성 권수 계산
 				List<Rental> headers = rentalRepo.findByMemberId(conn, member.getId()).stream()

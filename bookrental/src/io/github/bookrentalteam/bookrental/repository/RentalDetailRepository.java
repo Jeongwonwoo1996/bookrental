@@ -22,4 +22,10 @@ public interface RentalDetailRepository {
 	int countActive(Connection conn, long rentalId); // RENTED/OVERDUE/LOST 개수
 
 	int countReturned(Connection conn, long rentalId);
+
+	/**
+	 * 회원이 현재 '활성'(RENTED/OVERDUE/LOST) 상태로 보유 중인 도서 중, 전달된 bookIds와 겹치는 bookId 목록을
+	 * 반환합니다.
+	 */
+	List<Long> findActiveBookIdsByMemberAndBookIds(Connection conn, long memberId, List<Long> bookIds);
 }
