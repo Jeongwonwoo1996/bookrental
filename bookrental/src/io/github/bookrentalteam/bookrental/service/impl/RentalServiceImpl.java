@@ -44,14 +44,21 @@ public class RentalServiceImpl implements RentalService {
 	// ----------------------
 	@Override
 	public Rental rentBooks(Member member, List<Long> rawBookIds) {
+
+		// ✅ 항상 최신 멤버를 DB에서 로드하여 정지 여부 반영
 		if (member == null || member.getId() == null) {
 			throw new ValidationException("회원 정보가 유효하지 않습니다.");
 		}
+		Member freshMember = memberRepo.findById(member.getId());
+		if (freshMember == null || freshMember.getId() == null) {
+			throw new ValidationException("회원 정보가 유효하지 않습니다.");
+		}
+		if (freshMember.isSuspended()) {
+			throw new BusinessException("현재 대여 정지 상태입니다. 해제일: " + freshMember.getSuspendUntil());
+		}
+
 		if (rawBookIds == null || rawBookIds.isEmpty()) {
 			throw new ValidationException("대여할 도서를 1권 이상 선택해 주세요.");
-		}
-		if (member.isSuspended()) {
-			throw new BusinessException("현재 대여 정지 상태입니다. 해제일: " + member.getSuspendUntil());
 		}
 
 		// 입력 bookId 중복 제거(같은 거래 내 동일 도서 중복 금지: (rental_id, book_id) PK)
@@ -60,19 +67,20 @@ public class RentalServiceImpl implements RentalService {
 		try (Connection conn = ConnectionManager.getConnection()) {
 			conn.setAutoCommit(false);
 			try {
-				// 0) 동일 도서 중복 대여 사전 차단 (이미 보유 중인 도서)
-				List<Long> activeDup = detailRepo.findActiveBookIdsByMemberAndBookIds(conn, member.getId(), bookIds);
+				// 0) 동일 도서 중복 대여 사전 차단 (이미 보유 중인 도서: RENTED/OVERDUE/LOST)
+				List<Long> activeDup = detailRepo.findActiveBookIdsByMemberAndBookIds(conn, freshMember.getId(),
+						bookIds);
 				if (!activeDup.isEmpty()) {
 					throw new BusinessException("이미 대여 중인 도서가 포함되어 대여할 수 없습니다: " + activeDup);
 				}
 
 				// 1) 연체 보유 시 대여 차단(빠른 존재 조회)
-				if (detailRepo.existsOverdueByMemberId(conn, member.getId())) {
+				if (detailRepo.existsOverdueByMemberId(conn, freshMember.getId())) {
 					throw new BusinessException("연체 중인 도서가 있어 대여할 수 없습니다.");
 				}
 
-				// 활성 권수 계산 (OPEN 헤더 기준)
-				List<Rental> headers = rentalRepo.findByMemberId(conn, member.getId()).stream()
+				// 2) 활성 권수 계산 (OPEN 헤더의 RENTED/OVERDUE/LOST)
+				List<Rental> headers = rentalRepo.findByMemberId(conn, freshMember.getId()).stream()
 						.filter(r -> r.getRentalStatus() == RentalStatus.OPEN).collect(Collectors.toList());
 				int activeCount = 0;
 				for (Rental r : headers) {
@@ -84,17 +92,17 @@ public class RentalServiceImpl implements RentalService {
 						}
 					}
 				}
-				if (member.getRole() == Role.USER) {
+				if (freshMember.getRole() == Role.USER) {
 					if (activeCount + bookIds.size() > 7) {
 						throw new BusinessException("일반 회원은 동시에 최대 7권까지 대여할 수 있습니다. (현재: " + activeCount + "권)");
 					}
 				}
 
-				// 2) 헤더 생성
-				Rental header = new Rental(member.getId()); // 기본 OPEN, rentedAt=now
+				// 3) 헤더 생성
+				Rental header = new Rental(freshMember.getId()); // 기본 OPEN, rentedAt=now
 				long rentalId = rentalRepo.save(conn, header);
 
-				// 3) 각 도서 재고 잠금/차감 + 상세 생성
+				// 4) 각 도서 재고 잠금/차감 + 상세 생성
 				List<RentalDetail> details = new ArrayList<>();
 				for (Long bookId : bookIds) {
 					// 잠금 후 재고 확인/차감
@@ -109,7 +117,8 @@ public class RentalServiceImpl implements RentalService {
 					// 상세 엔티티
 					details.add(RentalDetail.of(rentalId, bookId));
 				}
-				// 4) 상세 일괄 저장
+
+				// 5) 상세 일괄 저장
 				detailRepo.saveAll(conn, rentalId, details);
 
 				conn.commit();
@@ -230,8 +239,17 @@ public class RentalServiceImpl implements RentalService {
 					throw new BusinessException("대여 기록을 찾을 수 없습니다: " + rentalId);
 				}
 
+				// ✅ 해당 거래 회원의 최신 상태를 DB에서 로드해 정지 여부 반영
+				Member freshMember = memberRepo.findById(header.getMemberId());
+				if (freshMember == null || freshMember.getId() == null) {
+					throw new ValidationException("회원 정보가 유효하지 않습니다.");
+				}
+				if (freshMember.isSuspended()) {
+					throw new BusinessException("현재 대여 정지 상태입니다. 해제일: " + freshMember.getSuspendUntil());
+				}
+
 				// 회원 연체 보유 시 연장 불가(빠른 조회)
-				if (detailRepo.existsOverdueByMemberId(conn, header.getMemberId())) {
+				if (detailRepo.existsOverdueByMemberId(conn, freshMember.getId())) {
 					throw new BusinessException("연체된 도서가 있어 연장할 수 없습니다.");
 				}
 
