@@ -1,6 +1,7 @@
 package io.github.bookrentalteam.bookrental;
 
 import java.sql.Connection;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -354,6 +355,12 @@ public class App {
 		try {
 			Member m = memberService.login(email, pw);
 			System.out.println(GREEN + "✅ [성공] 로그인: " + m.getName() + RESET);
+
+			// ✅ 로그인 직후 안내 배너(차단 아님)
+			if (m.getSuspendUntil() != null && !m.getSuspendUntil().isBefore(LocalDate.now())) {
+				System.out.printf(YELLOW + "[안내] %s님은 %s까지 대여/연장이 제한됩니다.%n" + RESET, m.getName(), m.getSuspendUntil());
+			}
+
 		} catch (Exception e) {
 			System.out.println(RED + "❌ [오류] " + e.getMessage() + RESET);
 		}

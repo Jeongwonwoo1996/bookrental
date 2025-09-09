@@ -66,9 +66,10 @@ public class MemberServiceImpl implements MemberService {
 			throw new BusinessException("이메일 또는 비밀번호가 올바르지 않습니다.");
 		}
 
-		if (m.isSuspended()) {
-			throw new BusinessException("대여 정지 중입니다. 종료일: " + m.getSuspendUntil());
-		}
+//		정지여부는 로그인에서 검사하지 않습니다. (대여/연장 시점에서 차단)
+//		if (m.isSuspended()) {
+//			throw new BusinessException("대여 정지 중입니다. 종료일: " + m.getSuspendUntil());
+//		}
 
 		currentUser = m;
 		return m;
